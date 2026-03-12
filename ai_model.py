@@ -1,5 +1,4 @@
-
-# ai_model.py - LOCAL MACHINE LEARNING & COMPUTER VISION ENGINE
+# ai_model.py - LOCAL MACHINE LEARNING & COMPUTER VISION ENGINE (FULLY CORRECTED)
 import os
 import json
 import base64
@@ -11,7 +10,12 @@ import numpy as np
 from datetime import datetime
 
 # Import the new advanced matching engine
-from ai_matcher import fashion_matcher
+try:
+    from ai_matcher import fashion_matcher
+except ImportError:
+    logger = logging.getLogger(__name__)
+    logger.warning("ai_matcher not found, using fallback matching")
+    fashion_matcher = None
 
 logger = logging.getLogger(__name__)
 
@@ -24,7 +28,6 @@ class LocalComputerVision:
     
     def decode_image(self, base64_str: str) -> np.ndarray:
         try:
-            # Deferred import for performance stability
             import cv2
             if ',' in base64_str:
                 base64_str = base64_str.split(',')[1]
@@ -36,40 +39,61 @@ class LocalComputerVision:
             return img
         except Exception as e:
             logger.error(f"Image decode error: {e}")
-            # Return dummy blank image
             return np.zeros((256, 256, 3), dtype=np.uint8)
 
-    def get_dominant_color(self, image: np.ndarray) -> Tuple[str, str, Tuple[int, int, int]]:
-        """Returns (Hex Color, Color Name, RGB Tuple) using KMeans on Center Crop."""
-        # Deferred imports to prevent reload hangs
+    def get_dominant_color(self, image: np.ndarray, mask: np.ndarray = None) -> Tuple[str, str, Tuple[int, int, int]]:
+        """
+        Returns (Hex Color, Color Name, RGB Tuple) using KMeans.
+        If mask is provided, only samples from masked area.
+        """
         import cv2
         from sklearn.cluster import KMeans
 
-        # CROP: Focus on center 50% to remove background noise
         h, w, _ = image.shape
-        start_x, start_y = int(w * 0.25), int(h * 0.25)
-        end_x, end_y = int(w * 0.75), int(h * 0.75)
-        crop = image[start_y:end_y, start_x:end_x]
         
-        # 1. Standard K-Means (RGB)
-        img_small = cv2.resize(crop, (64, 64))
-        img_rgb = cv2.cvtColor(img_small, cv2.COLOR_BGR2RGB)
-        pixels = img_rgb.reshape(-1, 3)
+        # If mask is provided, use it to sample only garment pixels
+        if mask is not None:
+            # Apply mask to get only garment pixels
+            masked_image = cv2.bitwise_and(image, image, mask=mask)
+            # Get non-zero pixels (where mask is white)
+            pixels = masked_image.reshape(-1, 3)
+            pixels = pixels[np.any(pixels != 0, axis=1)]  # Remove black background
+        else:
+            # Fallback to center crop if no mask
+            start_x, start_y = int(w * 0.25), int(h * 0.25)
+            end_x, end_y = int(w * 0.75), int(h * 0.75)
+            crop = image[start_y:end_y, start_x:end_x]
+            img_small = cv2.resize(crop, (64, 64))
+            img_rgb = cv2.cvtColor(img_small, cv2.COLOR_BGR2RGB)
+            pixels = img_rgb.reshape(-1, 3)
         
-        # Filter background (white/very light pixels)
-        mask = np.any(pixels < 250, axis=1) 
-        filtered_pixels = pixels[mask]
-        data = filtered_pixels if len(filtered_pixels) > (len(pixels) * 0.1) else pixels
+        if len(pixels) < 10:  # Not enough pixels
+            return '#808080', 'Gray', (128, 128, 128)
+        
+        # Filter out very bright pixels that might be background (threshold lowered to 230)
+        mask_filter = np.any(pixels < 230, axis=1)
+        filtered_pixels = pixels[mask_filter]
+        
+        # If we lost too many pixels, use original pixels
+        if len(filtered_pixels) < len(pixels) * 0.1:
+            data = pixels
+        else:
+            data = filtered_pixels
 
-        kmeans = KMeans(n_clusters=3, n_init=5, random_state=42)
-        kmeans.fit(data)
+        try:
+            kmeans = KMeans(n_clusters=min(3, len(data)), n_init=5, random_state=42)
+            kmeans.fit(data)
+            
+            counts = np.bincount(kmeans.labels_)
+            dominant_idx = np.argmax(counts)
+            r, g, b = kmeans.cluster_centers_[dominant_idx].astype(int)
+        except:
+            # Fallback if KMeans fails
+            r, g, b = np.mean(data, axis=0).astype(int)
         
-        counts = np.bincount(kmeans.labels_)
-        dominant_idx = np.argmax(counts)
-        r, g, b = kmeans.cluster_centers_[dominant_idx].astype(int)
         hex_color = '#{:02x}{:02x}{:02x}'.format(r, g, b)
         
-        # 2. Expanded RGB Name Matching
+        # Color name matching
         colors = {
             'Black': (15, 15, 15), 'White': (250, 250, 250), 'Off-White': (248, 248, 255),
             'Gray': (128, 128, 128), 'Charcoal': (54, 69, 79), 'Silver': (192, 192, 192), 
@@ -99,7 +123,7 @@ class LocalComputerVision:
                 min_dist = dist
                 initial_name = cname
         
-        # 3. Targeted Refinement
+        # HSV refinement
         hsv_pixel = cv2.cvtColor(np.uint8([[[b, g, r]]]), cv2.COLOR_BGR2HSV)[0][0]
         h, s, v = hsv_pixel[0], hsv_pixel[1], hsv_pixel[2]
         final_name = initial_name
@@ -116,132 +140,161 @@ class LocalComputerVision:
 
     def analyze_shape(self, image: np.ndarray, dominant_color: Tuple[int, int, int] = None) -> str:
         """
-        Refined shape analysis to distinguish Tops from Bags using shoulder width logic.
+        ACCURATE shape analysis - FIRST distinguish TOP vs BOTTOM vs FULL BODY,
+        THEN further classify into specific types.
         """
-        import cv2 # Deferred import
-
-        # 1. SEGMENTATION STRATEGY (Otsu)
-        mask = None
+        import cv2
+        
+        H, W = image.shape[:2]
+        
+        # ── 1. CREATE FOREGROUND MASK (GARMENT ONLY) ─────────────────
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        blurred = cv2.GaussianBlur(gray, (5, 5), 0)
         
-        if dominant_color:
-            dom_hsv_pixel = cv2.cvtColor(np.uint8([[dominant_color]]), cv2.COLOR_RGB2HSV)[0][0]
-            hsv_img = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
-            
-            if dominant_color[0] > 230 and dominant_color[1] > 230 and dominant_color[2] > 230:
-                 _, mask = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-            else:
-                hue = dom_hsv_pixel[0]
-                lower = np.array([max(0, hue-30), 20, 20])
-                upper = np.array([min(180, hue+30), 255, 255])
-                mask = cv2.inRange(hsv_img, lower, upper)
-                if cv2.countNonZero(mask) < (image.shape[0] * image.shape[1] * 0.05):
-                     _, mask = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-        else:
-             _, mask = cv2.threshold(blurred, 0, 255, cv2.THRESH_BINARY_INV + cv2.THRESH_OTSU)
-
-        # Cleanup
+        # Use multiple strategies to find garment
+        edges = cv2.Canny(gray, 50, 150)
         kernel = np.ones((5,5), np.uint8)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_OPEN, kernel)
-        mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel)
-
-        # 2. CONTOUR ANALYSIS
-        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        if not contours: return "Top"
+        edges_dilated = cv2.dilate(edges, kernel, iterations=2)
         
-        largest = max(contours, key=cv2.contourArea)
-        area = cv2.contourArea(largest)
+        thresh = cv2.adaptiveThreshold(gray, 255, cv2.ADAPTIVE_THRESH_GAUSSIAN_C, cv2.THRESH_BINARY_INV, 11, 2)
         
+        # Combine strategies
+        combined_mask = cv2.bitwise_or(edges_dilated, thresh)
+        
+        # Clean up mask
+        combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_CLOSE, kernel)
+        combined_mask = cv2.morphologyEx(combined_mask, cv2.MORPH_OPEN, kernel)
+        
+        # ── 2. FIND LARGEST CONTOUR (THE GARMENT) ────────────────────
+        contours, _ = cv2.findContours(combined_mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        if not contours:
+            return "Top"
+        
+        # Filter out small contours (noise)
+        min_area = H * W * 0.05
+        valid_contours = [c for c in contours if cv2.contourArea(c) > min_area]
+        
+        if not valid_contours:
+            valid_contours = contours
+        
+        # Get the largest contour (should be the garment)
+        largest = max(valid_contours, key=cv2.contourArea)
         x, y, w, h = cv2.boundingRect(largest)
-        if w == 0 or h == 0: return "Accessory"
-
-        # --- SHAPE METRICS ---
-        aspect_ratio = float(w) / h
-        img_area = image.shape[0] * image.shape[1]
-        relative_area = area / img_area
         
-        hull = cv2.convexHull(largest)
-        hull_area = cv2.contourArea(hull)
-        solidity = float(area)/hull_area if hull_area > 0 else 0
+        # Create mask of just the garment
+        garment_mask = np.zeros_like(gray)
+        cv2.drawContours(garment_mask, [largest], -1, 255, -1)
         
-        roi_mask = np.zeros_like(mask)
-        cv2.drawContours(roi_mask, [largest], -1, 255, -1)
-
-        # --- A. JEWELLERY & SMALL ITEMS ---
-        if relative_area < 0.15: 
-            if solidity < 0.65: return "Necklace"
-            if aspect_ratio > 2.5 or aspect_ratio < 0.4: return "Watch"
-            if 0.8 < aspect_ratio < 1.2 and solidity > 0.85:
-                if relative_area < 0.05: return "Earrings"
-                return "Ring"
-            return "Earrings"
-
-        # --- B. CLOTHING vs BAG LOGIC ---
+        # ── 3. STEP 1: DETERMINE GARMENT POSITION (TOP vs BOTTOM vs FULL) ───
+        garment_top = y / H
+        garment_bottom = (y + h) / H
+        garment_height_ratio = h / H
         
-        # Measure Width at "Shoulders" (Top 20%)
-        shoulder_y = y + int(h * 0.2)
-        if shoulder_y >= roi_mask.shape[0]: shoulder_y = roi_mask.shape[0] - 1
-        shoulder_row = roi_mask[shoulder_y, x:x+w]
-        shoulder_fill = cv2.countNonZero(shoulder_row) / w if w > 0 else 0
+        # Does the garment cover upper body? (starts in top 30% of image)
+        covers_upper = garment_top < 0.3
         
-        # Measure Width at "Legs/Hem" (Bottom 85%)
-        bottom_y = y + int(h * 0.85)
-        if bottom_y >= roi_mask.shape[0]: bottom_y = roi_mask.shape[0] - 1
-        bottom_row = roi_mask[bottom_y, x:x+w]
-        bottom_fill = cv2.countNonZero(bottom_row) / w if w > 0 else 0
+        # Does the garment cover lower body? (reaches bottom 40% of image)
+        covers_lower = garment_bottom > 0.6
         
-        # Check for Leg Gap (Bottom center)
-        crotch_roi = roi_mask[y+int(h*0.6):y+h, x+int(w*0.4):x+int(w*0.6)]
-        crotch_fill = cv2.countNonZero(crotch_roi) / crotch_roi.size if crotch_roi.size > 0 else 1
-        has_leg_gap = crotch_fill < 0.6
-
-        # --- DECISION TREE ---
-
-        # 1. BOTTOMS (Pants/Shorts/Skirts)
-        if has_leg_gap:
-            if aspect_ratio < 0.8: return "Trousers"
-            return "Shorts"
+        # Is it a full body garment? (covers both upper and lower)
+        is_full_body = covers_upper and covers_lower
         
-        # 2. TOP vs BAG DISCRIMINATION
-        # Tops generally have broad shoulders (high shoulder_fill).
-        # Bags generally have handles (low shoulder_fill due to gaps) OR are boxy.
+        # Is it long enough to be a dress? (> 65% of image height)
+        is_long = garment_height_ratio > 0.65
         
-        if shoulder_fill > 0.8:
-            # Broad top -> Likely Clothing
-            if aspect_ratio < 0.6: return "Trousers" # Skinny fit / folded
-            if aspect_ratio < 0.8: return "Dress"
-            return "Top" # Default for broad shoulder items (T-Shirts, Sweaters)
+        # ── 4. STEP 2: CHECK FOR LEG GAP (for distinguishing pants vs skirts, dress vs jumpsuit) ───
+        has_leg_gap = False
+        has_two_legs = False
+        
+        if h > 100:
+            leg_gap_count = 0
+            for slice_pos in [0.65, 0.70, 0.75, 0.80, 0.85]:
+                slice_y = min(y + int(h * slice_pos), H-1)
+                if slice_y >= H:
+                    continue
+                    
+                row = garment_mask[slice_y, x:min(x+w, W)]
+                if len(row) < 20:
+                    continue
+                    
+                # Split into left, center, right
+                third = len(row) // 3
+                if third == 0:
+                    continue
+                    
+                left = row[:third]
+                center = row[third:2*third]
+                right = row[2*third:]
+                
+                left_fill = np.count_nonzero(left) / len(left) if len(left) > 0 else 0
+                center_fill = np.count_nonzero(center) / len(center) if len(center) > 0 else 0
+                right_fill = np.count_nonzero(right) / len(right) if len(right) > 0 else 0
+                
+                # Leg gap pattern: left and right filled, center empty
+                if left_fill > 0.2 and right_fill > 0.2 and center_fill < 0.15:
+                    leg_gap_count += 1
+                
+                # Two separate legs pattern
+                if left_fill > 0.25 and right_fill > 0.25 and center_fill < 0.1:
+                    has_two_legs = True
             
-        # If shoulder_fill is low/moderate (straps or tapered neck):
-        # Could be Tank Top, Dress, or Bag.
+            if leg_gap_count >= 3:
+                has_leg_gap = True
         
-        # Check Solidity: Bags are extremely solid (rectangles). Tops have curves.
-        # Check Aspect Ratio: Bags are often wider (Landscape).
+        # ── 5. CHECK GARMENT LENGTH FOR SHORTS ───
+        is_short = False
+        if covers_lower and not covers_upper and garment_height_ratio < 0.4:
+            is_short = True
+
+        # ── 6. DECISION LOGIC - CORRECTED FOR CROPPED TOPS ──────────
         
-        is_very_solid = solidity > 0.95
-        is_landscape = aspect_ratio > 1.2
+        # ── FIX 1: CROPPED TOP DETECTION ─────────────────────────────
+        # If the garment starts low (garment_top > 0.25) but is tall in the frame,
+        # it is likely a cropped image of a Top, NOT a Dress.
+        # Dresses typically start near the neck (garment_top < 0.15).
+        if garment_height_ratio > 0.5 and garment_top > 0.25:
+            # High ratio + High start position = Cropped Top
+            return "Top"
+
+        # ── FIX 2: DRESS DETECTION (Requires starting near top) ──────
+        # Only classify as Dress if it covers full body OR is long AND starts at the top.
+        if is_full_body or (is_long and garment_top < 0.15):
+            if has_leg_gap or has_two_legs:
+                return "Jumpsuit"  # Has leg separation
+            else:
+                return "Dress"     # No leg separation
         
-        if is_very_solid and is_landscape:
-            return "Bag" # Clutch / Rectangular Bag
-            
-        if aspect_ratio > 1.5:
-             # Very wide -> Bag
-             return "Bag"
-             
-        # Fallback: Bias towards Top for typical wardrobe items unless clear handle gap logic applies
-        # Real bags usually have handle gaps that are very clear (low fill in top center).
-        handle_roi = roi_mask[y:y+int(h*0.25), x+int(w*0.3):x+int(w*0.7)]
-        handle_fill = cv2.countNonZero(handle_roi) / handle_roi.size if handle_roi.size > 0 else 1
+        # ── FIX 3: BOTTOMS (Pants, Skirt, Shorts) ────────────────────
+        # Only classify as Bottom if it clearly starts below the waist area.
+        elif covers_lower and not covers_upper:
+            if is_short:
+                return "Shorts"
+            elif has_leg_gap or has_two_legs:
+                return "Pants"
+            else:
+                return "Skirt"
         
-        if handle_fill < 0.4 and is_very_solid:
-             return "Bag" # Tote with handle
-             
-        # Default to Top for ambiguous items (Folded shirts often look like blocks but not perfect rectangles)
-        return "Top"
+        # ── FIX 4: STANDARD TOPS ─────────────────────────────────────
+        # Covers upper body but doesn't reach lower body.
+        elif covers_upper and not covers_lower:
+            return "Top"
+        
+        # ── FIX 5: AMBIGUOUS FALLBACK ────────────────────────────────
+        else:
+            # If it's tall but starts in the middle, it's a Top (Cropped)
+            if garment_height_ratio > 0.6 and garment_top > 0.2:
+                return "Top"
+            # If it's short and starts high, it's a Top
+            elif garment_height_ratio < 0.4 and y < H * 0.3:
+                return "Top"
+            # If it's short and starts low, it's Shorts
+            elif garment_height_ratio < 0.4 and y >= H * 0.3:
+                return "Shorts"
+            # Default to Top if uncertain (safer than Dress)
+            else:
+                return "Top"
 
     def analyze_texture_properties(self, image: np.ndarray) -> Dict[str, float]:
-        import cv2 # Deferred import
+        import cv2
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         h, w = gray.shape
         center = gray[int(h*0.3):int(h*0.7), int(w*0.3):int(w*0.7)]
@@ -253,6 +306,7 @@ class LocalComputerVision:
         
         return {"variance": laplacian_var, "brightness": brightness}
 
+
 class FabricClassifier:
     """
     Enhanced Logic Inference Engine (LIE) for Fabric Detection.
@@ -261,10 +315,14 @@ class FabricClassifier:
     def classify(variance: float, brightness: float, color: str, category: str) -> str:
         
         # 1. IMMEDIATE DENIM OVERRIDE
-        denim_colors = ["Denim", "Light Denim", "Navy", "Blue", "Charcoal", "Ice Blue", "Gray", "Black", "Light Blue", "Royal Blue", "Sky Blue", "Slate", "Indigo", "Midnight Navy"]
-        if color in denim_colors:
-             if variance > 100 or "Denim" in color:
-                 return "Denim"
+        denim_colors = ["Denim", "Light Denim", "Navy", "Blue", "Charcoal", "Ice Blue", "Gray", "Black", 
+                       "Light Blue", "Royal Blue", "Sky Blue", "Slate", "Indigo", "Midnight Navy"]
+        
+        denim_categories = ["Pants", "Shorts", "Jacket", "Skirt", "Dress", "Jumpsuit", "Top"]
+        
+        if category in denim_categories and color in denim_colors:
+            if variance > 100:  # Denim has characteristic texture
+                return "Denim"
 
         # --- ACCESSORIES & JEWELRY ---
         if category in ["Necklace", "Ring", "Earrings", "Watch", "Jewellery"]:
@@ -278,44 +336,245 @@ class FabricClassifier:
              if variance > 300: return "Canvas"
              return "Synthetic"
 
-        # --- JEANS DETECTION ---
-        if category in ["Trousers", "Jeans", "Shorts", "Skirt", "Bottom"]:
-             if color in denim_colors:
-                 return "Denim"
+        # --- BOTTOM FABRICS ---
+        if category in ["Pants", "Shorts"]:
+            if variance > 500:
+                return "Wool"
+            if 200 < variance < 500:
+                return "Cotton"
+            return "Polyester"
+            
+        if category == "Skirt":
+            if variance > 800:
+                return "Wool"
+            # TIGHTENED SATIN THRESHOLD - only extremely smooth fabrics
+            if variance < 30 and brightness > 120:
+                return "Satin"
+            if 300 < variance < 700:
+                return "Cotton"
+            return "Polyester"
 
-        # --- CLOTHING FABRICS ---
-        if variance > 800:
-            if color in ["Red", "Burgundy", "Navy", "Black", "Green"] and brightness < 150:
-                 return "Velvet"
-            return "Wool"
-
-        if color in ["Black", "Brown", "Camel", "Tan"] and variance < 100:
-            # If it's a Top, avoid calling it Leather unless very shiny (brightness)
-            if category == "Top": return "Cotton" 
-            return "Leather"
-
-        if 300 < variance < 700 and color in ["White", "Beige", "Cream", "Olive"]:
-            return "Linen"
-
-        if variance < 60 and brightness > 120:
-            return "Satin"
-
-        if variance < 200:
+        # --- TOP FABRICS ---
+        if category == "Top":
+            if variance > 800:
+                return "Wool" if brightness < 150 else "Cotton"
+            # TIGHTENED SATIN THRESHOLD - only extremely smooth fabrics
+            if variance < 30 and brightness > 120:
+                return "Satin"
+            if 300 < variance < 700 and color in ["White", "Beige", "Cream", "Olive"]:
+                return "Linen"
             return "Cotton"
 
-        return "Polyester"
+        # --- DRESS FABRICS ---
+        if category == "Dress":
+            if variance > 800:
+                if color in ["Red", "Burgundy", "Navy", "Black", "Green"] and brightness < 150:
+                    return "Velvet"
+                return "Wool"
+            # TIGHTENED SATIN THRESHOLD
+            if variance < 30 and brightness > 120:
+                return "Satin"
+            if 300 < variance < 700:
+                return "Linen"
+            return "Cotton"
+
+        # --- JUMPSUIT FABRICS ---
+        if category == "Jumpsuit":
+            # TIGHTENED SATIN THRESHOLD
+            if variance < 30:
+                return "Satin"
+            if variance > 500:
+                return "Wool"
+            return "Cotton"
+
+        return "Cotton"  # Default
+
+
+class StyleProfile:
+    """
+    Manages user style preferences and profiles.
+    """
+    
+    @staticmethod
+    def get_default_profile() -> Dict[str, Any]:
+        """Return a default style profile"""
+        return {
+            "everyday_look": "Casual Comfort",
+            "style_archetype": "Casual",
+            "style_vibes": ["Casual"],
+            "preferred_colors": ["Black", "White", "Gray"],
+            "color_categories": ["Monochrome"],
+            "silhouette_preference": "Draped & Flowing",
+            "avoid_colors": [],
+            "preferred_fabrics": ["Cotton"],
+            "comfort_level": 5,
+            "style_keywords": ["comfortable", "versatile"],
+            "body_type": "Unknown",
+            "occasion_preferences": {
+                "casual": "Relaxed and comfortable",
+                "work": "Smart casual",
+                "formal": "Classic and elegant",
+                "party": "Bold and stylish"
+            }
+        }
+    
+    @staticmethod
+    def extract_from_questionnaire(answers: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Convert questionnaire answers to style profile.
+        """
+        
+        profile = StyleProfile.get_default_profile()
+        
+        # --- 1. Process Everyday Look selections ---
+        everyday_looks = answers.get("everyday_look", [])
+        if isinstance(everyday_looks, str):
+            everyday_looks = [everyday_looks]
+        
+        # Map selected looks to style archetypes
+        look_mapping = {
+            "Minimalist & Clean": {
+                "archetype": "Minimalist",
+                "keywords": ["clean-lined", "understated", "monochromatic", "streamlined"],
+                "colors": ["Monochrome"],
+                "silhouette": "Tailored & Structured"
+            },
+            "Bold & Experimental": {
+                "archetype": "Avant-Garde",
+                "keywords": ["bold", "experimental", "statement", "unique", "artistic"],
+                "colors": ["Bright", "Contrast"],
+                "silhouette": "Architectural"
+            },
+            "Classic & Sophisticated": {
+                "archetype": "Classic",
+                "keywords": ["timeless", "elegant", "polished", "refined", "sophisticated"],
+                "colors": ["Monochrome", "Neutrals"],
+                "silhouette": "Tailored & Structured"
+            },
+            "Bohemian & Relaxed": {
+                "archetype": "Boho",
+                "keywords": ["flowy", "relaxed", "earthy", "layered", "free-spirited"],
+                "colors": ["Earthy", "Warm"],
+                "silhouette": "Draped & Flowing"
+            },
+            "Streetwear & Edgy": {
+                "archetype": "Streetwear",
+                "keywords": ["edgy", "urban", "oversized", "graphic", "casual-cool"],
+                "colors": ["Monochrome", "Bold"],
+                "silhouette": "Oversized & Relaxed"
+            }
+        }
+        
+        # Store selected vibes
+        profile["style_vibes"] = everyday_looks
+        
+        # Process each selected look
+        all_keywords = []
+        all_colors = []
+        
+        for look in everyday_looks:
+            if look in look_mapping:
+                mapped = look_mapping[look]
+                all_keywords.extend(mapped["keywords"])
+                if mapped["colors"]:
+                    all_colors.extend(mapped["colors"])
+        
+        # Set primary archetype
+        if everyday_looks:
+            primary_look = everyday_looks[0]
+            profile["style_archetype"] = look_mapping.get(primary_look, {}).get("archetype", "Casual")
+            profile["everyday_look"] = primary_look
+        
+        # Remove duplicate keywords
+        profile["style_keywords"] = list(dict.fromkeys(all_keywords))
+        
+        # --- 2. Process Color Preference ---
+        color_pref = answers.get("color_preference", "")
+        profile["color_preference"] = color_pref
+        
+        # Parse color preference
+        if "Monochrome" in color_pref:
+            profile["color_categories"] = ["Monochrome"]
+            profile["preferred_colors"] = ["Black", "White", "Gray", "Charcoal", "Silver"]
+        elif "Pastels" in color_pref:
+            profile["color_categories"] = ["Pastels"]
+            profile["preferred_colors"] = ["Blush", "Lavender", "Mint", "Baby Blue", "Cream", "Powder Pink"]
+        elif "Earthy" in color_pref or "Warm" in color_pref:
+            profile["color_categories"] = ["Earthy"]
+            profile["preferred_colors"] = ["Olive", "Brown", "Tan", "Rust", "Sage", "Camel", "Terracotta"]
+        elif "Bright" in color_pref:
+            profile["color_categories"] = ["Bright"]
+            profile["preferred_colors"] = ["Red", "Royal Blue", "Emerald", "Yellow", "Coral", "Fuchsia"]
+        else:
+            if "Black/White" in color_pref:
+                profile["preferred_colors"].extend(["Black", "White"])
+            if "Pastels" in color_pref:
+                profile["preferred_colors"].extend(["Blush", "Lavender", "Mint"])
+        
+        # --- 3. Process Silhouette Preference ---
+        silhouette = answers.get("silhouette", "Draped & Flowing")
+        profile["silhouette_preference"] = silhouette
+        
+        # Add silhouette to keywords
+        if silhouette == "Tailored & Structured":
+            profile["style_keywords"].extend(["tailored", "structured", "sharp"])
+        elif silhouette == "Draped & Flowing":
+            profile["style_keywords"].extend(["flowy", "draped", "soft"])
+        elif silhouette == "Oversized & Relaxed":
+            profile["style_keywords"].extend(["oversized", "relaxed", "comfortable"])
+        
+        # Remove duplicates
+        profile["style_keywords"] = list(dict.fromkeys(profile["style_keywords"]))
+        
+        return profile
+
 
 class FashionAIModel:
     vision = LocalComputerVision()
     classifier = FabricClassifier()
+    
+    # Store user profiles
+    _user_profiles: Dict[str, Dict[str, Any]] = {}
+    
+    @staticmethod
+    async def set_user_style_profile(user_id: str, profile_data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Set or update a user's style profile from questionnaire answers.
+        """
+        if "answers" in profile_data:
+            profile = StyleProfile.extract_from_questionnaire(profile_data["answers"])
+        else:
+            profile = {**StyleProfile.get_default_profile(), **profile_data}
+        
+        FashionAIModel._user_profiles[user_id] = profile
+        
+        logger.info(f"Style profile set for user {user_id}: {profile['style_archetype']}")
+        
+        return {
+            "success": True,
+            "profile": profile,
+            "message": f"Style DNA mapped to {profile['style_archetype']}"
+        }
+    
+    @staticmethod
+    def get_user_style_profile(user_id: str) -> Dict[str, Any]:
+        """
+        Get a user's style profile.
+        """
+        return FashionAIModel._user_profiles.get(user_id, StyleProfile.get_default_profile())
     
     @staticmethod
     async def autotag_garment(image_data: str) -> Dict[str, Any]:
         """Local ML Pipeline for Item Recognition."""
         try:
             img = FashionAIModel.vision.decode_image(image_data)
+            
+            # Get shape analysis
+            category = FashionAIModel.vision.analyze_shape(img)
+            
+            # Get color (without mask for now - we'll enhance later)
             hex_color, color_name, rgb = FashionAIModel.vision.get_dominant_color(img)
-            category = FashionAIModel.vision.analyze_shape(img, rgb)
+            
             texture = FashionAIModel.vision.analyze_texture_properties(img)
             
             fabric = FashionAIModel.classifier.classify(
@@ -325,43 +584,61 @@ class FashionAIModel:
                 category=category
             )
             
-            # --- SMART CATEGORY CORRECTION ---
+            # --- SMART CATEGORY REFINEMENT ---
             final_category = category
-            final_name_prefix = ""
-
-            # 1. JEANS CORRECTION
-            if fabric == "Denim":
-                if category in ["Necklace", "Ring", "Earrings", "Watch", "Jewellery", "Accessory", "Metal", "Bag"]:
-                    final_category = "Jeans"
-                    final_name_prefix = "Denim"
-                elif category == "Trousers": 
-                    final_category = "Jeans"
-                    final_name_prefix = "Denim"
-                elif category in ["Shorts", "Skirt"]:
-                    final_name_prefix = "Denim"
+            final_name_parts = []
             
-            # 2. WATCH / BAG / JEWELRY Naming
-            if category in ["Watch", "Bag", "Necklace", "Ring", "Earrings"]:
-                final_name_prefix = fabric
-
-            final_name = f"{final_name_prefix} {final_category}".strip()
-            if not final_name_prefix:
-                final_name = f"{color_name} {final_category}"
+            # Add fabric if distinctive
+            if fabric not in ["Cotton", "Polyester", "Unknown"]:
+                final_name_parts.append(fabric)
             
-            # Use matcher to get a complementary color suggestion for the metadata
-            best_color = "Denim"
-            try:
-                candidates = ['White', 'Black', 'Denim', 'Navy', 'Beige']
-                best_score = 0
-                dummy_input = {'color': color_name, 'category': final_category, 'fabric': fabric}
-                for c in candidates:
-                    dummy_partner = {'color': c, 'category': 'Bottom' if final_category == 'Top' else 'Top', 'fabric': 'Cotton'}
-                    res = fashion_matcher.match_items(dummy_input, dummy_partner)
-                    if res['compatibility_score'] > best_score:
-                        best_score = res['compatibility_score']
-                        best_color = c
-            except:
-                pass
+            # Add color
+            final_name_parts.append(color_name)
+            
+            # Add specific category name
+            if fabric == "Denim" and category in ["Pants", "Shorts", "Skirt", "Jacket", "Dress", "Jumpsuit", "Top"]:
+                if category == "Pants":
+                    final_name_parts.append("Jeans")
+                elif category == "Shorts":
+                    final_name_parts.append("Denim Shorts")
+                elif category == "Skirt":
+                    final_name_parts.append("Denim Skirt")
+                elif category == "Jacket":
+                    final_name_parts.append("Denim Jacket")
+                elif category == "Dress":
+                    final_name_parts.append("Denim Dress")
+                elif category == "Jumpsuit":
+                    final_name_parts.append("Denim Jumpsuit")
+                elif category == "Top":
+                    final_name_parts.append("Denim Top")
+                else:
+                    final_name_parts.append(category)
+            else:
+                final_name_parts.append(category)
+            
+            final_name = " ".join(final_name_parts)
+            
+            # Get complementary color
+            best_color = "White"
+            if fashion_matcher:
+                try:
+                    candidates = ['White', 'Black', 'Denim', 'Navy', 'Beige']
+                    best_score = 0
+                    dummy_input = {'color': color_name, 'category': final_category, 'fabric': fabric}
+                    for c in candidates:
+                        if final_category in ['Dress', 'Jumpsuit']:
+                            target_cat = 'Accessory'
+                        elif final_category in ['Top']:
+                            target_cat = 'Pants'
+                        else:
+                            target_cat = 'Top'
+                        dummy_partner = {'color': c, 'category': target_cat, 'fabric': 'Cotton'}
+                        res = fashion_matcher.match_items(dummy_input, dummy_partner)
+                        if res and res.get('compatibility_score', 0) > best_score:
+                            best_score = res['compatibility_score']
+                            best_color = c
+                except:
+                    pass
 
             return {
                 "success": True,
@@ -381,126 +658,730 @@ class FashionAIModel:
                 "category": "Top", 
                 "fabric": "Cotton", 
                 "color": "Multi", 
-                "best_color": "Denim"
+                "best_color": "White"
             }
 
     @staticmethod
-    async def get_outfit_suggestion(image_data: str, variation: int = 0) -> Dict[str, Any]:
+    async def get_outfit_suggestion(image_data: str, variation: int = 0, user_id: str = None, season: str = "summer") -> Dict[str, Any]:
         """
-        Generates distinct outfit suggestions.
-        Updated to ensure 'Regenerate' creates noticeably different sets using seed offsetting.
+        Generates outfit suggestions based on detected garment, user's Style DNA, AND season.
         """
         try:
             img = FashionAIModel.vision.decode_image(image_data)
-            _, color, _ = FashionAIModel.vision.get_dominant_color(img)
+            
+            # Get category
             category = FashionAIModel.vision.analyze_shape(img)
             
-            # 1. Ensure Randomness is actually random based on variation
-            # Use a hash of input + variation to create a stable but changing seed
+            # Get color
+            hex_color, color, rgb = FashionAIModel.vision.get_dominant_color(img)
+            
+            texture = FashionAIModel.vision.analyze_texture_properties(img)
+            fabric = FashionAIModel.classifier.classify(
+                variance=texture['variance'],
+                brightness=texture['brightness'],
+                color=color,
+                category=category
+            )
+            
+            # Get user's Style DNA profile
+            user_profile = FashionAIModel.get_user_style_profile(user_id) if user_id else StyleProfile.get_default_profile()
+            
+            # 1. Ensure Randomness based on variation
             seed_val = hash(image_data[:50]) + (variation * 77)
             random.seed(seed_val)
 
-            # 2. Vibes Cycle
-            vibes = ["Minimalist", "Boho", "Chic", "Streetwear", "Elegant", "Casual", "Vintage", "Preppy"]
-            # Pick vibe based on variation index, but randomize if variation > 8
-            vibe_idx = variation % len(vibes)
-            vibe = vibes[vibe_idx]
+            # 2. DETERMINE VIBE BASED ON STYLE DNA
+            style_archetype = user_profile.get("style_archetype", "Casual")
+            style_keywords = user_profile.get("style_keywords", [])
+            style_vibes = user_profile.get("style_vibes", [])
             
-            # 3. Match Logic (Stochastic)
-            input_item = {'color': color, 'category': category, 'fabric': 'Unknown'}
-            candidates = ['Black', 'White', 'Navy', 'Beige', 'Denim', 'Gray', 'Olive', 'Camel', 'Red', 'Silver']
-            # Shuffle candidates to break deterministic order
+            vibe = style_archetype
+            
+            if variation > 0 and style_vibes and len(style_vibes) > 1:
+                vibe_idx = (variation - 1) % len(style_vibes)
+                selected_look = style_vibes[vibe_idx]
+                
+                look_to_archetype = {
+                    "Minimalist & Clean": "Minimalist",
+                    "Bold & Experimental": "Avant-Garde",
+                    "Classic & Sophisticated": "Classic",
+                    "Bohemian & Relaxed": "Boho",
+                    "Streetwear & Edgy": "Streetwear"
+                }
+                vibe = look_to_archetype.get(selected_look, style_archetype)
+            
+            logger.info(f"Using Style DNA: {vibe} for user {user_id}, season: {season}")
+            
+            # 3. Match Logic for complementary color
+            input_item = {'color': color, 'category': category, 'fabric': fabric}
+            
+            preferred_colors = user_profile.get("preferred_colors", [])
+            color_categories = user_profile.get("color_categories", [])
+            
+            color_expansion = {
+                "Monochrome": ["Black", "White", "Gray", "Charcoal", "Silver"],
+                "Pastels": ["Blush", "Lavender", "Mint", "Baby Blue", "Cream"],
+                "Bright": ["Red", "Royal Blue", "Emerald", "Yellow", "Coral"],
+                "Earthy": ["Olive", "Brown", "Tan", "Rust", "Sage", "Camel"],
+                "Neutrals": ["Beige", "Navy", "Camel", "Gray", "White"]
+            }
+            
+            candidates = []
+            for cat in color_categories:
+                if cat in color_expansion:
+                    candidates.extend(color_expansion[cat])
+            
+            candidates.extend(preferred_colors)
+            candidates.extend(['Black', 'White', 'Navy', 'Beige', 'Denim', 'Gray'])
+            
+            avoid_colors = user_profile.get("avoid_colors", [])
+            candidates = [c for c in candidates if c not in avoid_colors]
+            
+            seen = set()
+            candidates = [x for x in candidates if not (x in seen or seen.add(x))]
+            
             random.shuffle(candidates)
             
-            best_match_color = "Denim"
+            best_match_color = candidates[0] if candidates else "White"
             best_score = -1
             
-            for cand_color in candidates:
-                if category == 'Bag': target_cat = 'Dress'
-                elif category in ['Top', 'T-Shirt', 'Sweater', 'Blouse', 'Shirt']: target_cat = 'Bottom'
-                elif category in ['Dress', 'Jumpsuit']: target_cat = 'Jacket' 
-                else: target_cat = 'Top'
-                
-                dummy_partner = {'color': cand_color, 'category': target_cat, 'fabric': 'Cotton'}
-                result = fashion_matcher.match_items(input_item, dummy_partner)
-                
-                # Add randomness to scoring to diversify color pairing
-                randomized_score = result['compatibility_score'] + (random.random() * 15)
-                
-                if randomized_score > best_score:
-                    best_score = randomized_score
-                    best_match_color = cand_color
+            if fashion_matcher:
+                for cand_color in candidates:
+                    if category in ['Pants', 'Shorts', 'Skirt']:
+                        target_cat = 'Top'
+                    elif category in ['Top']:
+                        target_cat = 'Pants'
+                    else:
+                        target_cat = 'Accessory'
+                    
+                    dummy_partner = {'color': cand_color, 'category': target_cat, 'fabric': 'Cotton'}
+                    result = fashion_matcher.match_items(input_item, dummy_partner)
+                    
+                    if result:
+                        preference_boost = 20 if cand_color in preferred_colors else 0
+                        randomized_score = result.get('compatibility_score', 0) + (random.random() * 15) + preference_boost
+                        
+                        if randomized_score > best_score:
+                            best_score = randomized_score
+                            best_match_color = cand_color
 
-            # --- EXPANDED SHOE LIBRARY ---
-            shoe_library = {
-                "Streetwear": ["Jordan 1 Highs", "Chunky Dad Sneakers", "Yeezy Slides", "Dunk Lows", "Tech Runners", "Air Force 1s"],
-                "Chic": ["Pointed Toe Mules", "Kitten Heels", "Slingback Pumps", "Leather Ankle Boots", "Ballet Flats"],
-                "Boho": ["Suede Booties", "Gladiator Sandals", "Espadrilles", "Leather Slides", "Western Boots"],
-                "Minimalist": ["White Leather Sneakers", "Black Chelsea Boots", "Clean Loafers", "Derby Shoes"],
-                "Elegant": ["Stilettos", "Patent Leather Pumps", "Strappy Heels", "Velvet Loafers"],
-                "Casual": ["Canvas Slip-ons", "Running Shoes", "Low-top Sneakers", "Boat Shoes", "Classic Converse"],
-                "Vintage": ["Oxford Brogues", "T-Strap Heels", "Penny Loafers", "Saddle Shoes"],
-                "Preppy": ["Boat Shoes", "Penny Loafers", "Riding Boots", "Driving Mocs"]
-            }
+            # --- AI-GENERATED SUGGESTIONS ---
+            detected_item = f"{color} {fabric} {category}"
             
-            # --- EXPANDED ACCESSORY/JEWELRY LIBRARY ---
-            jewelry_library = {
-                "Streetwear": ["Chunky Silver Chain", "Hoop Earrings", "Layered Chains", "Stud Earrings"],
-                "Chic": ["Gold Pendant Necklace", "Pearl Earrings", "Stackable Rings", "Dainty Gold Chain"],
-                "Boho": ["Turquoise Ring", "Beaded Necklace", "Feather Earrings", "Layered Bangles"],
-                "Minimalist": ["Thin Gold Band", "Small Studs", "Geometric Pendant", "Silver Cuff"],
-                "Elegant": ["Diamond Studs", "Tennis Bracelet", "Pearl Necklace", "Statement Ring"],
-                "Casual": ["Simple Pendant", "Leather Bracelet", "Beaded Bracelet", "Watch"],
-                "Vintage": ["Cameo Brooch", "Locket Necklace", "Clip-on Earrings", "Signet Ring"],
-                "Preppy": ["Pearl Studs", "Gold Bangle", "Charm Bracelet", "Headband"]
-            }
+            silhouette = user_profile.get("silhouette_preference", "Draped & Flowing")
+            
+            shoe_suggestion = await FashionAIModel._generate_style_dna_suggestion(
+                item_type="shoes",
+                base_item=detected_item,
+                vibe=vibe,
+                style_keywords=style_keywords,
+                silhouette=silhouette,
+                color_context=f"complementing {best_match_color}",
+                season=season
+            )
+            
+            jewelry_suggestion = await FashionAIModel._generate_style_dna_suggestion(
+                item_type="jewelry/accessory",
+                base_item=detected_item,
+                vibe=vibe,
+                style_keywords=style_keywords,
+                silhouette=silhouette,
+                color_context=f"with {best_match_color} accents",
+                season=season
+            )
+            
+            bag_suggestion = await FashionAIModel._generate_style_dna_suggestion(
+                item_type="bag",
+                base_item=detected_item,
+                vibe=vibe,
+                style_keywords=style_keywords,
+                silhouette=silhouette,
+                color_context=f"in {best_match_color}",
+                season=season
+            )
 
-            # --- EXPANDED BAG/ACCESSORY LIBRARY ---
-            bag_library = {
-                "Streetwear": ["Crossbody Fanny Pack", "Mini Backpack", "Nylon Tote", "Chest Rig", "Beanie"],
-                "Chic": ["Leather Structured Tote", "Top Handle Bag", "Silk Scarf", "Clutch", "Oversized Sunglasses"],
-                "Boho": ["Fringed Crossbody", "Woven Tote", "Floppy Hat", "Patterned Scarf"],
-                "Minimalist": ["Canvas Tote", "Saddle Bag", "Leather Shopper", "Structured Clutch"],
-                "Elegant": ["Satin Clutch", "Quilted Shoulder Bag", "Silk Shawl", "Leather Gloves"],
-                "Casual": ["Canvas Backpack", "Slouchy Tote", "Baseball Cap", "Crossbody Bag"],
-                "Vintage": ["Frame Handbag", "Beaded Purse", "Silk Headscarf", "Cat-eye Sunglasses"],
-                "Preppy": ["Structured Satchel", "Canvas Tote", "Ribbon Belt", "Headband"]
-            }
-
-            # Final selections using the variation-seeded random
-            shoe_choice = random.choice(shoe_library.get(vibe, shoe_library["Casual"]))
-            jewelry_choice = random.choice(jewelry_library.get(vibe, jewelry_library["Casual"]))
-            bag_choice = random.choice(bag_library.get(vibe, bag_library["Casual"]))
-
-            # Construct the descriptive match string
-            match_piece_str = ""
-            if category == 'Bag':
-                 match_piece_str = f"{best_match_color} Dress or Co-ord"
+            # Construct match description
+            if category in ['Pants', 'Shorts', 'Skirt']:
+                match_piece_str = f"{best_match_color} Top"
+            elif category == 'Top':
+                match_piece_str = f"{best_match_color} Bottom"
             elif category in ['Dress', 'Jumpsuit']:
-                 match_piece_str = f"{best_match_color} Jacket or Blazer"
-            elif category in ['Top', 'T-Shirt', 'Sweater']:
-                 match_piece_str = f"{best_match_color} Trousers or Skirt"
+                match_piece_str = ""
             else:
-                 match_piece_str = f"{best_match_color} Top or Blouse"
+                match_piece_str = f"{best_match_color} Matching Piece"
+
+            # Generate styling tips
+            styling_tips = await FashionAIModel._generate_style_dna_tips(
+                detected_item, vibe, style_keywords, best_match_color, season
+            )
+
+            # Create style DNA message
+            style_dna_message = f"Based on your {style_archetype} Style DNA"
+            if style_vibes:
+                style_dna_message = f"Based on your {', '.join(style_vibes)} Style DNA"
+
+            # Add season emoji
+            season_emoji = {
+                "summer": "☀️",
+                "winter": "❄️",
+                "spring": "🌸",
+                "fall": "🍂",
+                "all-season": "🌤️"
+            }.get(season, "☀️")
 
             return {
+                "style_dna": style_dna_message,
+                "season": f"{season_emoji} {season.capitalize()}",
                 "vibe": vibe,
-                "identified_item": f"{color} {category}",
+                "identified_item": detected_item,
                 "match_piece": match_piece_str,
-                "jewelry": jewelry_choice,
-                "shoes": shoe_choice,
-                "bag": bag_choice,
-                "best_color": best_match_color
+                "jewelry": jewelry_suggestion,
+                "shoes": shoe_suggestion,
+                "bag": bag_suggestion,
+                "best_color": best_match_color,
+                "styling_tips": styling_tips,
+                "silhouette": silhouette
             }
+            
         except Exception as e:
             logger.error(f"Suggestion failed: {e}")
-            return {}
+            return {
+                "style_dna": "Based on your Casual Style DNA",
+                "season": "☀️ Summer",
+                "vibe": "Casual",
+                "identified_item": "Unknown Item",
+                "match_piece": "",
+                "jewelry": "Simple accessory",
+                "shoes": "Classic sneakers",
+                "bag": "Versatile tote",
+                "best_color": "White",
+                "styling_tips": "Keep it simple and comfortable",
+                "silhouette": "Relaxed"
+            }
+
+    @staticmethod
+    async def _generate_style_dna_suggestion(item_type: str, base_item: str, vibe: str, 
+                                             style_keywords: List[str], silhouette: str, 
+                                             color_context: str, season: str = "summer") -> str:
+        """
+        Generate suggestions that follow the user's Style DNA and are seasonally appropriate.
+        """
+        import random
+        
+        # STYLE DNA SPECIFIC LIBRARIES
+        # (Keeping all the style libraries from before - they're extensive)
+        
+        # MINIMALIST Style DNA - SUMMER version
+        minimalist_items_summer = {
+            "shoes": [
+                "White leather sneakers",
+                "Minimalist leather sandals",
+                "Streamlined mules",
+                "Understated ballet flats",
+                "Clean espadrilles",
+                "Simple slide sandals",
+                "Breathable mesh sneakers"
+            ],
+            "jewelry/accessory": [
+                "Thin gold band",
+                "Small silver studs",
+                "Geometric pendant necklace",
+                "Minimalist watch with mesh band",
+                "Delicate chain bracelet",
+                "Single hoop earrings",
+                "Simple cuff bracelet"
+            ],
+            "bag": [
+                "Structured leather tote",
+                "Clean canvas shopper",
+                "Minimalist crossbody bag",
+                "Straw beach bag",
+                "Streamlined backpack",
+                "Understated shoulder bag",
+                "Architectural clutch"
+            ]
+        }
+        
+        # MINIMALIST Style DNA - WINTER version
+        minimalist_items_winter = {
+            "shoes": [
+                "Black chelsea boots",
+                "Minimalist leather loafers",
+                "Clean derby shoes",
+                "Streamlined ankle boots",
+                "Simple leather lace-ups",
+                "Understated heeled boots",
+                "Minimalist winter sneakers"
+            ],
+            "jewelry/accessory": [
+                "Thin gold band",
+                "Small silver studs",
+                "Geometric pendant necklace",
+                "Minimalist leather watch",
+                "Delicate chain bracelet",
+                "Single hoop earrings",
+                "Simple cuff bracelet",
+                "Wool scarf in neutral tone"
+            ],
+            "bag": [
+                "Structured leather tote",
+                "Clean canvas shopper",
+                "Minimalist crossbody bag",
+                "Sleek leather backpack",
+                "Understated shoulder bag",
+                "Architectural saddle bag"
+            ]
+        }
+        
+        # BOHO Style DNA - SUMMER version
+        boho_items_summer = {
+            "shoes": [
+                "Woven espadrilles",
+                "Leather gladiator sandals",
+                "Embroidered mules",
+                "Beaded slides",
+                "Natural fiber wedges",
+                "Crochet slip-ons",
+                "Fringed sandals"
+            ],
+            "jewelry/accessory": [
+                "Turquoise pendant necklace",
+                "Layered beaded bracelets",
+                "Feather earrings",
+                "Stacked silver rings",
+                "Boho charm bracelet",
+                "Macrame choker",
+                "Crystal statement necklace",
+                "Shell anklet"
+            ],
+            "bag": [
+                "Woven straw tote",
+                "Embroidered hobo bag",
+                "Beaded clutch",
+                "Macrame shoulder bag",
+                "Fringed crossbody bag",
+                "Tasseled leather satchel",
+                "Suede bucket bag"
+            ]
+        }
+        
+        # BOHO Style DNA - WINTER version
+        boho_items_winter = {
+            "shoes": [
+                "Suede ankle boots",
+                "Fringed western boots",
+                "Embroidered booties",
+                "Tasseled loafers",
+                "Beaded winter boots",
+                "Crochet-lined boots",
+                "Suede knee-high boots"
+            ],
+            "jewelry/accessory": [
+                "Turquoise pendant necklace",
+                "Layered beaded bracelets",
+                "Feather earrings",
+                "Stacked silver rings",
+                "Boho charm bracelet",
+                "Crystal statement necklace",
+                "Woven scarf",
+                "Fringed shawl"
+            ],
+            "bag": [
+                "Fringed crossbody bag",
+                "Embroidered hobo bag",
+                "Tasseled leather satchel",
+                "Suede bucket bag",
+                "Beaded shoulder bag",
+                "Patchwork tote"
+            ]
+        }
+        
+        # STREETWEAR Style DNA - SUMMER version
+        streetwear_items_summer = {
+            "shoes": [
+                "Air Force 1s",
+                "Dunk Low SB",
+                "Tech runner sneakers",
+                "Box fresh retro runners",
+                "Breathable mesh sneakers",
+                "Low-top skate shoes",
+                "Slide sandals with socks"
+            ],
+            "jewelry/accessory": [
+                "Chunky silver chain",
+                "Gold hoop earrings",
+                "Layered pendant necklace",
+                "Diamond stud earrings",
+                "Statement watch",
+                "Silver cuff bracelet",
+                "Chain belt",
+                "Bucket hat"
+            ],
+            "bag": [
+                "Crossbody fanny pack",
+                "Nylon utility bag",
+                "Mini backpack",
+                "Chest rig",
+                "Tech fabric tote",
+                "Logo belt bag",
+                "Graffiti print backpack"
+            ]
+        }
+        
+        # STREETWEAR Style DNA - WINTER version
+        streetwear_items_winter = {
+            "shoes": [
+                "Chunky dad sneakers",
+                "Jordan 1 Highs",
+                "Yeezy foam runners",
+                "Dunk Low SB (high top)",
+                "Tech runner sneakers",
+                "Air Force 1s (high)",
+                "Puffy winter sneakers"
+            ],
+            "jewelry/accessory": [
+                "Chunky silver chain",
+                "Gold hoop earrings",
+                "Layered pendant necklace",
+                "Diamond stud earrings",
+                "Statement watch",
+                "Silver cuff bracelet",
+                "Chain belt",
+                "Beanie with logo"
+            ],
+            "bag": [
+                "Crossbody fanny pack",
+                "Nylon utility bag",
+                "Mini backpack",
+                "Chest rig",
+                "Tech fabric tote",
+                "Logo belt bag",
+                "Graffiti print backpack"
+            ]
+        }
+        
+        # CLASSIC Style DNA - SUMMER version
+        classic_items_summer = {
+            "shoes": [
+                "Leather loafers",
+                "Ballet flats",
+                "Derby shoes",
+                "Elegant sandals",
+                "Penny loafers",
+                "Espadrilles",
+                "Classic pumps"
+            ],
+            "jewelry/accessory": [
+                "Pearl stud earrings",
+                "Tennis bracelet",
+                "Gold pendant necklace",
+                "Classic watch",
+                "Signet ring",
+                "Silk scarf",
+                "Cameo brooch"
+            ],
+            "bag": [
+                "Structured leather tote",
+                "Classic flap bag",
+                "Top handle satchel",
+                "Leather doctor bag",
+                "Elegant shoulder bag",
+                "Frame clutch",
+                "Woven leather bag"
+            ]
+        }
+        
+        # CLASSIC Style DNA - WINTER version
+        classic_items_winter = {
+            "shoes": [
+                "Cap toe oxfords",
+                "Leather loafers",
+                "Classic pumps",
+                "Derby shoes",
+                "Elegant ankle boots",
+                "Penny loafers",
+                "Knee-high boots"
+            ],
+            "jewelry/accessory": [
+                "Pearl stud earrings",
+                "Tennis bracelet",
+                "Gold pendant necklace",
+                "Classic watch",
+                "Signet ring",
+                "Silk scarf",
+                "Cameo brooch",
+                "Cashmere scarf"
+            ],
+            "bag": [
+                "Structured leather tote",
+                "Classic flap bag",
+                "Top handle satchel",
+                "Leather doctor bag",
+                "Elegant shoulder bag",
+                "Frame clutch",
+                "Bucket bag"
+            ]
+        }
+        
+        # AVANT-GARDE Style DNA - SUMMER version
+        avantgarde_items_summer = {
+            "shoes": [
+                "Architectural heel sandals",
+                "Asymmetric pumps",
+                "Sculptural sandals",
+                "Geometric mules",
+                "Abstract design sneakers",
+                "Cut-out booties",
+                "Deconstructed slides"
+            ],
+            "jewelry/accessory": [
+                "Geometric statement necklace",
+                "Asymmetric earrings",
+                "Sculptural cuff",
+                "Abstract brooch",
+                "Architectural ring",
+                "Deconstructed chain",
+                "Mixed metal pieces"
+            ],
+            "bag": [
+                "Sculptural structured bag",
+                "Asymmetric clutch",
+                "Geometric shoulder bag",
+                "Deconstructed tote",
+                "Architectural backpack",
+                "Abstract print bag",
+                "Mixed material hobo"
+            ]
+        }
+        
+        # AVANT-GARDE Style DNA - WINTER version
+        avantgarde_items_winter = {
+            "shoes": [
+                "Architectural heel boots",
+                "Asymmetric pumps",
+                "Sculptural boots",
+                "Deconstructed oxfords",
+                "Platform creepers",
+                "Geometric booties",
+                "Abstract design winter boots"
+            ],
+            "jewelry/accessory": [
+                "Geometric statement necklace",
+                "Asymmetric earrings",
+                "Sculptural cuff",
+                "Abstract brooch",
+                "Architectural ring",
+                "Deconstructed chain",
+                "Mixed metal pieces"
+            ],
+            "bag": [
+                "Sculptural structured bag",
+                "Asymmetric clutch",
+                "Geometric shoulder bag",
+                "Deconstructed tote",
+                "Architectural backpack",
+                "Abstract print bag",
+                "Mixed material hobo"
+            ]
+        }
+        
+        # Map vibe to the appropriate style library based on season
+        if season.lower() in ["summer", "spring"]:
+            style_libraries = {
+                "Minimalist": minimalist_items_summer,
+                "Boho": boho_items_summer,
+                "Streetwear": streetwear_items_summer,
+                "Classic": classic_items_summer,
+                "Avant-Garde": avantgarde_items_summer,
+                "Casual": minimalist_items_summer,
+                "Elegant": classic_items_summer,
+                "Edgy": streetwear_items_summer,
+                "Vintage": boho_items_summer,
+                "Bohemian": boho_items_summer,
+                "Chic": classic_items_summer,
+                "Glam": classic_items_summer,
+                "Retro": boho_items_summer,
+                "Sporty": streetwear_items_summer,
+                "Grunge": streetwear_items_summer,
+                "Preppy": classic_items_summer,
+                "Romantic": boho_items_summer
+            }
+        else:  # winter or fall
+            style_libraries = {
+                "Minimalist": minimalist_items_winter,
+                "Boho": boho_items_winter,
+                "Streetwear": streetwear_items_winter,
+                "Classic": classic_items_winter,
+                "Avant-Garde": avantgarde_items_winter,
+                "Casual": minimalist_items_winter,
+                "Elegant": classic_items_winter,
+                "Edgy": streetwear_items_winter,
+                "Vintage": boho_items_winter,
+                "Bohemian": boho_items_winter,
+                "Chic": classic_items_winter,
+                "Glam": classic_items_winter,
+                "Retro": boho_items_winter,
+                "Sporty": streetwear_items_winter,
+                "Grunge": streetwear_items_winter,
+                "Preppy": classic_items_winter,
+                "Romantic": boho_items_winter
+            }
+        
+        # Get the right style library based on vibe
+        default_lib = minimalist_items_summer if season in ["summer", "spring"] else minimalist_items_winter
+        style_library = style_libraries.get(vibe, default_lib)
+        
+        # Get items for the requested type
+        items_for_type = style_library.get(item_type, style_library.get("shoes", default_lib["shoes"]))
+        
+        # If we have style keywords, use them to filter
+        if style_keywords:
+            keyword_matches = []
+            other_items = []
+            
+            for item in items_for_type:
+                item_lower = item.lower()
+                if any(keyword.lower() in item_lower for keyword in style_keywords):
+                    keyword_matches.append(item)
+                else:
+                    other_items.append(item)
+            
+            if keyword_matches:
+                items_for_type = keyword_matches + other_items
+        
+        # Add color context to some items
+        color_match = best_match_color_from_context(color_context)
+        variations = []
+        
+        for item in items_for_type[:5]:
+            if random.random() > 0.7:
+                variations.append(f"{item} in {color_match}")
+            else:
+                variations.append(item)
+        
+        return random.choice(variations) if variations else items_for_type[0]
+
+    @staticmethod
+    async def _generate_style_dna_tips(base_item: str, vibe: str, style_keywords: List[str], accent_color: str, season: str = "summer") -> str:
+        """
+        Generate styling tips based on Style DNA and season.
+        """
+        style_tips = {
+            "Minimalist": {
+                "summer": [
+                    "Keep accessories minimal - let the clean lines speak for themselves.",
+                    "Choose breathable linens and cottons for hot days.",
+                    "A monochromatic palette in light colors keeps you cool.",
+                    "Opt for sleeveless silhouettes that maintain clean lines.",
+                    "Negative space and lighter fabrics are your summer friends."
+                ],
+                "winter": [
+                    "Focus on quality wool and cashmere for warmth without bulk.",
+                    "Layer thoughtfully - a fine gauge turtleneck under a structured coat.",
+                    "Stick to a monochromatic palette in deeper tones for winter.",
+                    "Choose one statement piece and keep everything else understated.",
+                    "Invest in a well-tailored wool coat - it elevates everything."
+                ]
+            },
+            "Boho": {
+                "summer": [
+                    "Layer lightweight textures like crochet, lace, and gauze.",
+                    "Mix earthy tones with pops of turquoise or coral for summer.",
+                    "Flowy maxi dresses in breathable fabrics keep you cool.",
+                    "Natural materials like wood and shell add authentic bohemian charm.",
+                    "Embrace bare shoulders and open backs in the heat."
+                ],
+                "winter": [
+                    "Layer chunky knits over flowing skirts with tights.",
+                    "Mix warm textures like suede, wool, and velvet.",
+                    "Deep jewel tones and earthy shades work beautifully for winter.",
+                    "Fringed boots and layered scarves add boho warmth.",
+                    "A poncho or fringed shawl completes the winter boho look."
+                ]
+            },
+            "Streetwear": {
+                "summer": [
+                    "Play with proportions - oversized tees with bike shorts.",
+                    "Fresh white sneakers complete any summer streetwear look.",
+                    "Lightweight technical fabrics keep you cool.",
+                    "Bucket hats and fanny packs add summer street cred.",
+                    "Layer with mesh or technical vests for dimension."
+                ],
+                "winter": [
+                    "Oversized puffers are both warm and stylish.",
+                    "Layer hoodies under denim jackets for warmth.",
+                    "Chunky sneakers work with thick socks.",
+                    "Beanies and technical fabrics are winter essentials.",
+                    "Cargo pants with thermal lining keep you cozy."
+                ]
+            },
+            "Classic": {
+                "summer": [
+                    "Invest in quality linen and cotton basics.",
+                    "A well-tailored white shirt elevates any summer outfit.",
+                    "Pearls and gold tones add timeless elegance to summer looks.",
+                    "Stick to a neutral palette with navy or blush accents.",
+                    "Classic doesn't mean boring - play with textures like seersucker."
+                ],
+                "winter": [
+                    "A cashmere sweater in a neutral tone is worth the investment.",
+                    "Well-tailored wool trousers create clean lines.",
+                    "Pearls peeking out from a turtleneck add elegance.",
+                    "A camel hair coat is the ultimate classic winter piece.",
+                    "Leather gloves and a silk scarf complete the polished look."
+                ]
+            },
+            "Avant-Garde": {
+                "summer": [
+                    "Let your outfit be a conversation starter even in summer.",
+                    "Mix unexpected lightweight textures like mesh and organza.",
+                    "Asymmetric cuts create visual interest without extra layers.",
+                    "Don't follow trends - set them, even in the heat.",
+                    "Architectural accessories in lighter materials complete the look."
+                ],
+                "winter": [
+                    "Sculptural coats become the focal point.",
+                    "Layer deconstructed pieces for warmth and interest.",
+                    "Bold silhouettes stand out against winter neutrals.",
+                    "Mixed textures like wool and leather create dimension.",
+                    "Statement outerwear is worth the investment."
+                ]
+            },
+            "Casual": {
+                "summer": [
+                    "Comfort is key - choose soft, breathable cotton and linen.",
+                    "Well-fitted basics create an effortlessly cool summer look.",
+                    "Add interest with texture rather than pattern.",
+                    "A great pair of white sneakers grounds any casual summer outfit.",
+                    "Layer with a lightweight denim jacket for cooler evenings."
+                ],
+                "winter": [
+                    "Comfort is key - choose soft sweaters and warm layers.",
+                    "Well-fitted basics under cardigans create effortless style.",
+                    "Add interest with textured knits.",
+                    "A great pair of boots grounds any casual winter outfit.",
+                    "Layer with a puffer vest for warmth without bulk."
+                ]
+            }
+        }
+        
+        # Get tips for this vibe and season
+        vibe_tips_dict = style_tips.get(vibe, style_tips["Casual"])
+        season_tips = vibe_tips_dict.get(season.lower(), vibe_tips_dict.get("summer", 
+            ["Style is personal - wear what makes you feel confident!"]))
+        
+        # Add color-specific tip
+        color_tip = f"The {accent_color} accents will tie your whole {season} look together."
+        
+        all_tips = season_tips + [color_tip]
+        return random.choice(all_tips)
 
     @staticmethod
     async def generate_outfits_from_wardrobe(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Generates 3 different outfit vibes using the Advanced Engine.
-        """
+        """Generates outfit vibes using the Advanced Engine."""
+        if not fashion_matcher:
+            return []
+        
         outfits = []
         styles = ['casual', 'business', 'streetwear']
         
@@ -517,9 +1398,20 @@ class FashionAIModel:
 
     @staticmethod
     def get_evolution_data(items: List[Dict[str, Any]], history: List[Dict[str, Any]] = []) -> Dict[str, Any]:
-        """
-        Uses Advanced Engine to analyze wardrobe health/gaps.
-        """
+        """Analyzes wardrobe health/gaps."""
+        if not fashion_matcher:
+            return {
+                "timeline": [],
+                "insights": {
+                    "dominant_style": "Casual",
+                    "style_change": "0%",
+                    "color_preferences": [],
+                    "style_confidence": 50,
+                    "wardrobe_size": len(items),
+                    "recommendations": []
+                }
+            }
+        
         analysis = fashion_matcher.analyze_wardrobe_gaps(items)
         timeline = []
         
@@ -540,7 +1432,6 @@ class FashionAIModel:
             primary_style = style_list[0] if style_list else entry.get('archetype', 'Mapped')
             
             mood = "Exploring"
-            summary = entry.get('summary', '')
             if 'Minimalist' in primary_style: mood = "Clean & Sharp"
             elif 'Streetwear' in primary_style: mood = "Bold & Expressive"
             elif 'Vintage' in primary_style: mood = "Nostalgic"
@@ -560,18 +1451,18 @@ class FashionAIModel:
         return {
             "timeline": timeline,
             "insights": {
-                "dominant_style": analysis['dominant_style'],
-                "style_change": f"{analysis['wardrobe_health_score']}%",
-                "color_preferences": analysis['color_preferences'][:5],
-                "style_confidence": analysis['wardrobe_health_score'],
-                "wardrobe_size": analysis['total_items'],
-                "recommendations": analysis['recommendations']
+                "dominant_style": analysis.get('dominant_style', 'Casual'),
+                "style_change": f"{analysis.get('wardrobe_health_score', 50)}%",
+                "color_preferences": analysis.get('color_preferences', [])[:5],
+                "style_confidence": analysis.get('wardrobe_health_score', 50),
+                "wardrobe_size": analysis.get('total_items', len(items)),
+                "recommendations": analysis.get('recommendations', [])
             }
         }
     
     @staticmethod
     def curate_trip(city: str, duration: int, vibe: str) -> Dict[str, Any]:
-        # REAL Shopping Database for Fashion Capitals
+        """Curates a packing list for a trip."""
         CITY_SHOPPING_GUIDE = {
             "Delhi": {
                 "markets": ["Khan Market", "Sarojini Nagar", "Dilli Haat", "Select Citywalk"],
@@ -658,18 +1549,19 @@ class FashionAIModel:
 
     @staticmethod
     async def audit_brand(brand: str) -> Dict[str, Any]:
+        """Audits a brand's sustainability."""
         b = brand.lower()
         known_scores = {
             "patagonia": {"total": 92, "eco": 95, "labor": 90, "trans": 91, "summary": "Industry leader in environmental responsibility and supply chain transparency."},
             "reformation": {"total": 85, "eco": 88, "labor": 80, "trans": 87, "summary": "Strong focus on sustainable materials and carbon neutrality."},
             "zara": {"total": 45, "eco": 40, "labor": 50, "trans": 45, "summary": "Fast fashion model raises concerns about waste and labor conditions."},
-            "h&m": {"total": 52, "eco": 55, "labor": 50, "trans": 50, "summary": "Has sustainability initiatives (Conscious collection) but volume is high."},
+            "h&m": {"total": 52, "eco": 55, "labor": 50, "trans": 50, "summary": "Has sustainability initiatives but volume is high."},
             "shein": {"total": 15, "eco": 10, "labor": 20, "trans": 15, "summary": "Ultra-fast fashion with significant environmental and ethical concerns."},
             "everlane": {"total": 78, "eco": 75, "labor": 80, "trans": 80, "summary": "Built on 'Radical Transparency' regarding costs and factories."},
-            "levi's": {"total": 65, "eco": 70, "labor": 60, "trans": 65, "summary": "Good water-saving initiatives (Water<Less), improving transparency."},
+            "levi's": {"total": 65, "eco": 70, "labor": 60, "trans": 65, "summary": "Good water-saving initiatives, improving transparency."},
             "nike": {"total": 60, "eco": 65, "labor": 55, "trans": 60, "summary": "Mixed performance; strong innovation but massive scale challenges."},
-            "gucci": {"total": 70, "eco": 72, "labor": 75, "trans": 65, "summary": "Luxury sector leader in going carbon neutral, though transparency varies."},
-            "uniqlo": {"total": 55, "eco": 50, "labor": 60, "trans": 55, "summary": "Focus on durability, but transparency in supply chain could improve."}
+            "gucci": {"total": 70, "eco": 72, "labor": 75, "trans": 65, "summary": "Luxury sector leader in going carbon neutral."},
+            "uniqlo": {"total": 55, "eco": 50, "labor": 60, "trans": 55, "summary": "Focus on durability, but transparency could improve."}
         }
         
         if b in known_scores:
@@ -709,9 +1601,58 @@ class FashionAIModel:
 
     @staticmethod
     def weather_styling(city: str) -> Dict[str, Any]:
+        """Provides weather-based styling advice."""
         return {
-                "temp": 22, 
-                "condition": "Sunny", 
-                "outfit": {"top": "T-Shirt", "bottom": "Jeans", "layer": "None", "shoes": "Sneakers"}, 
-                "advice": "Great weather for a casual day out."
-            }
+            "temp": 22, 
+            "condition": "Sunny", 
+            "outfit": {"top": "T-Shirt", "bottom": "Jeans", "layer": "None", "shoes": "Sneakers"}, 
+            "advice": "Great weather for a casual day out."
+        }
+
+
+# Helper functions
+def best_match_color_from_context(color_context: str) -> str:
+    """Extract color from context string"""
+    colors = ['Black', 'White', 'Navy', 'Beige', 'Denim', 'Gray', 'Olive', 'Camel', 'Red', 'Silver',
+              'Burgundy', 'Emerald', 'Mustard', 'Coral', 'Lavender', 'Rust', 'Sage', 'Blush']
+    for color in colors:
+        if color.lower() in color_context.lower():
+            return color
+    return "complementary"
+
+def item_to_dict(item_str: str) -> Dict[str, Any]:
+    """Convert item string to dictionary for matching"""
+    parts = item_str.split()
+    color = parts[0] if parts else "Unknown"
+    
+    if "Top" in item_str:
+        category = "Top"
+    elif "Pants" in item_str or "Jeans" in item_str:
+        category = "Pants"
+    elif "Shorts" in item_str:
+        category = "Shorts"
+    elif "Skirt" in item_str:
+        category = "Skirt"
+    elif "Dress" in item_str:
+        category = "Dress"
+    elif "Jumpsuit" in item_str:
+        category = "Jumpsuit"
+    else:
+        category = "Unknown"
+    
+    return {'color': color, 'category': category, 'fabric': 'Unknown'}
+
+def suggestion_to_dict(suggestion: str, color: str, item_type: str) -> Dict[str, Any]:
+    """Convert suggestion to dictionary for matching"""
+    category_map = {
+        "shoes": "Shoes",
+        "jewelry/accessory": "Accessory",
+        "bag": "Bag",
+        "top": "Top",
+        "bottom": "Pants",
+        "outerwear": "Outerwear",
+        "jacket/blazer": "Jacket"
+    }
+    
+    category = category_map.get(item_type, "Unknown")
+    return {'color': color, 'category': category, 'fabric': 'Unknown'}

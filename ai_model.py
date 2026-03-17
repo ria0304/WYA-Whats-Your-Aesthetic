@@ -1,10 +1,4 @@
 # ai_model.py - FINAL VERSION WITH IMPROVED MASKING & COLOR EXTRACTION
-# Fixed: Properly isolates garment from background for accurate color detection
-# Fixed: Better distinction between jumpsuits, skirts, and pants using aspect ratio
-# Fixed: Removed wool completely - only cotton, linen, silk, denim, etc.
-# Fixed: Style match always suggests different color than target garment
-# Fixed: AUTOTAGGING - Skirts are skirts, Jumpsuits are jumpsuits, Pants are pants!
-# Fixed: STYLE MATCH VARIETY - Different suggestions each time with variation parameter
 
 import os
 import json

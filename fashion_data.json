@@ -1,0 +1,443 @@
+{
+  "minimalist": {
+    "summer": {
+      "shoes": [
+        "White leather sneakers",
+        "Minimalist leather sandals",
+        "Streamlined mules",
+        "Understated ballet flats",
+        "Clean espadrilles",
+        "Simple slide sandals",
+        "Breathable mesh sneakers",
+        "Beige canvas sneakers",
+        "Black leather loafers",
+        "Nude block heels"
+      ],
+      "jewelry/accessory": [
+        "Thin gold band",
+        "Small silver studs",
+        "Geometric pendant necklace",
+        "Minimalist watch with mesh band",
+        "Delicate chain bracelet",
+        "Single hoop earrings",
+        "Simple cuff bracelet",
+        "Tiny diamond necklace",
+        "Pearl studs",
+        "Thin silver bangle"
+      ],
+      "bag": [
+        "Structured leather tote",
+        "Clean canvas shopper",
+        "Minimalist crossbody bag",
+        "Straw beach bag",
+        "Streamlined backpack",
+        "Understated shoulder bag",
+        "Architectural clutch",
+        "Bamboo handle bag",
+        "Nylon belt bag",
+        "Clear acrylic purse"
+      ]
+    },
+    "winter": {
+      "shoes": [
+        "Black chelsea boots",
+        "Minimalist leather loafers",
+        "Clean derby shoes",
+        "Streamlined ankle boots",
+        "Simple leather lace-ups",
+        "Understated heeled boots",
+        "Minimalist winter sneakers",
+        "Sleek knee-high boots",
+        "Black leather oxfords",
+        "Minimalist combat boots"
+      ],
+      "jewelry/accessory": [
+        "Thin gold band",
+        "Small silver studs",
+        "Geometric pendant necklace",
+        "Minimalist leather watch",
+        "Delicate chain bracelet",
+        "Single hoop earrings",
+        "Simple cuff bracelet",
+        "Wool scarf in neutral tone",
+        "Leather gloves",
+        "Cashmere beanie"
+      ],
+      "bag": [
+        "Structured leather tote",
+        "Clean canvas shopper",
+        "Minimalist crossbody bag",
+        "Sleek leather backpack",
+        "Understated shoulder bag",
+        "Architectural saddle bag",
+        "Leather doctor bag",
+        "Minimalist belt bag",
+        "Felt carryall",
+        "Structured satchel"
+      ]
+    }
+  },
+  "boho": {
+    "summer": {
+      "shoes": [
+        "Woven espadrilles",
+        "Leather gladiator sandals",
+        "Embroidered mules",
+        "Beaded slides",
+        "Natural fiber wedges",
+        "Crochet slip-ons",
+        "Fringed sandals",
+        "Suede ankle boots",
+        "Tassel loafers",
+        "Macrame sandals"
+      ],
+      "jewelry/accessory": [
+        "Turquoise pendant necklace",
+        "Layered beaded bracelets",
+        "Feather earrings",
+        "Stacked silver rings",
+        "Boho charm bracelet",
+        "Macrame choker",
+        "Crystal statement necklace",
+        "Shell anklet",
+        "Wooden bangles",
+        "Dreamcatcher earrings"
+      ],
+      "bag": [
+        "Woven straw tote",
+        "Embroidered hobo bag",
+        "Beaded clutch",
+        "Macrame shoulder bag",
+        "Fringed crossbody bag",
+        "Tasseled leather satchel",
+        "Suede bucket bag",
+        "Patchwork backpack",
+        "Tribal print bag",
+        "Boho fringe bag"
+      ]
+    },
+    "winter": {
+      "shoes": [
+        "Suede ankle boots",
+        "Fringed western boots",
+        "Embroidered booties",
+        "Tasseled loafers",
+        "Beaded winter boots",
+        "Crochet-lined boots",
+        "Suede knee-high boots",
+        "Fringed combat boots",
+        "Embroidered snow boots",
+        "Leather moccasins"
+      ],
+      "jewelry/accessory": [
+        "Turquoise pendant necklace",
+        "Layered beaded bracelets",
+        "Feather earrings",
+        "Stacked silver rings",
+        "Boho charm bracelet",
+        "Crystal statement necklace",
+        "Woven scarf",
+        "Fringed shawl",
+        "Tassel beanie",
+        "Embroidered gloves"
+      ],
+      "bag": [
+        "Fringed crossbody bag",
+        "Embroidered hobo bag",
+        "Tasseled leather satchel",
+        "Suede bucket bag",
+        "Beaded shoulder bag",
+        "Patchwork tote",
+        "Fringed backpack",
+        "Wool tapestry bag",
+        "Boho saddle bag",
+        "Embroidered duffel"
+      ]
+    }
+  },
+  "streetwear": {
+    "summer": {
+      "shoes": [
+        "Air Force 1s",
+        "Dunk Low SB",
+        "Tech runner sneakers",
+        "Box fresh retro runners",
+        "Breathable mesh sneakers",
+        "Low-top skate shoes",
+        "Slide sandals with socks",
+        "Yeezy foam runners",
+        "New Balance 550s",
+        "Jordan 1 Lows"
+      ],
+      "jewelry/accessory": [
+        "Chunky silver chain",
+        "Gold hoop earrings",
+        "Layered pendant necklace",
+        "Diamond stud earrings",
+        "Statement watch",
+        "Silver cuff bracelet",
+        "Chain belt",
+        "Bucket hat",
+        "Baseball cap",
+        "Crossbody phone case"
+      ],
+      "bag": [
+        "Crossbody fanny pack",
+        "Nylon utility bag",
+        "Mini backpack",
+        "Chest rig",
+        "Tech fabric tote",
+        "Logo belt bag",
+        "Graffiti print backpack",
+        "Transparent bag",
+        "Puffer bag",
+        "Webbing belt bag"
+      ]
+    },
+    "winter": {
+      "shoes": [
+        "Chunky dad sneakers",
+        "Jordan 1 Highs",
+        "Yeezy 700s",
+        "Dunk High SB",
+        "Tech runner sneakers",
+        "Air Force 1s high",
+        "Puffy winter sneakers",
+        "Timberland boots",
+        "Puma cell sneakers",
+        "Balenciaga runners"
+      ],
+      "jewelry/accessory": [
+        "Chunky silver chain",
+        "Gold hoop earrings",
+        "Layered pendant necklace",
+        "Diamond stud earrings",
+        "Statement watch",
+        "Silver cuff bracelet",
+        "Chain belt",
+        "Beanie with logo",
+        "Technical gloves",
+        "Puffer scarf"
+      ],
+      "bag": [
+        "Crossbody fanny pack",
+        "Nylon utility bag",
+        "Mini backpack",
+        "Chest rig",
+        "Tech fabric tote",
+        "Logo belt bag",
+        "Graffiti print backpack",
+        "Puffer bag",
+        "Technical backpack",
+        "Webbing crossbody"
+      ]
+    }
+  },
+  "classic": {
+    "summer": {
+      "shoes": [
+        "Leather loafers",
+        "Ballet flats",
+        "Derby shoes",
+        "Elegant sandals",
+        "Penny loafers",
+        "Espadrilles",
+        "Classic pumps",
+        "Slingback heels",
+        "Spectator shoes",
+        "Mary Janes"
+      ],
+      "jewelry/accessory": [
+        "Pearl stud earrings",
+        "Tennis bracelet",
+        "Gold pendant necklace",
+        "Classic watch",
+        "Signet ring",
+        "Silk scarf",
+        "Cameo brooch",
+        "Gold hoop earrings",
+        "Charm bracelet",
+        "Locket necklace"
+      ],
+      "bag": [
+        "Structured leather tote",
+        "Classic flap bag",
+        "Top handle satchel",
+        "Leather doctor bag",
+        "Elegant shoulder bag",
+        "Frame clutch",
+        "Woven leather bag",
+        "Chain strap bag",
+        "Bowler bag",
+        "Classic duffle"
+      ]
+    },
+    "winter": {
+      "shoes": [
+        "Cap toe oxfords",
+        "Leather loafers",
+        "Classic pumps",
+        "Derby shoes",
+        "Elegant ankle boots",
+        "Penny loafers",
+        "Knee-high boots",
+        "Chukka boots",
+        "Wingtip oxfords",
+        "Chelsea boots"
+      ],
+      "jewelry/accessory": [
+        "Pearl stud earrings",
+        "Tennis bracelet",
+        "Gold pendant necklace",
+        "Classic watch",
+        "Signet ring",
+        "Silk scarf",
+        "Cameo brooch",
+        "Cashmere scarf",
+        "Leather gloves",
+        "Wool beret"
+      ],
+      "bag": [
+        "Structured leather tote",
+        "Classic flap bag",
+        "Top handle satchel",
+        "Leather doctor bag",
+        "Elegant shoulder bag",
+        "Frame clutch",
+        "Bucket bag",
+        "Saddle bag",
+        "Leather backpack",
+        "Classic holdall"
+      ]
+    }
+  },
+  "avant-garde": {
+    "summer": {
+      "shoes": [
+        "Architectural heel sandals",
+        "Asymmetric pumps",
+        "Sculptural sandals",
+        "Geometric mules",
+        "Abstract design sneakers",
+        "Cut-out booties",
+        "Deconstructed slides",
+        "Platform creepers",
+        "Spiral heels",
+        "Modular sandals"
+      ],
+      "jewelry/accessory": [
+        "Geometric statement necklace",
+        "Asymmetric earrings",
+        "Sculptural cuff",
+        "Abstract brooch",
+        "Architectural ring",
+        "Deconstructed chain",
+        "Mixed metal pieces",
+        "Modular earrings",
+        "Kinetic jewelry",
+        "Resin statement piece"
+      ],
+      "bag": [
+        "Sculptural structured bag",
+        "Asymmetric clutch",
+        "Geometric shoulder bag",
+        "Deconstructed tote",
+        "Architectural backpack",
+        "Abstract print bag",
+        "Mixed material hobo",
+        "Modular bag system",
+        "Origami fold bag",
+        "Clear structural purse"
+      ]
+    },
+    "winter": {
+      "shoes": [
+        "Architectural heel boots",
+        "Asymmetric pumps",
+        "Sculptural boots",
+        "Deconstructed oxfords",
+        "Platform creepers",
+        "Geometric booties",
+        "Abstract design winter boots",
+        "Modular boot system",
+        "Spiral heel booties",
+        "Cut-out combat boots"
+      ],
+      "jewelry/accessory": [
+        "Geometric statement necklace",
+        "Asymmetric earrings",
+        "Sculptural cuff",
+        "Abstract brooch",
+        "Architectural ring",
+        "Deconstructed chain",
+        "Mixed metal pieces",
+        "Modular necklace",
+        "Kinetic bracelet",
+        "Resin cuff"
+      ],
+      "bag": [
+        "Sculptural structured bag",
+        "Asymmetric clutch",
+        "Geometric shoulder bag",
+        "Deconstructed tote",
+        "Architectural backpack",
+        "Abstract print bag",
+        "Mixed material hobo",
+        "Modular bag",
+        "Origami fold tote",
+        "Sculptural saddle"
+      ]
+    }
+  },
+  "casual": {
+    "summer": {
+      "shoes": [
+        "Classic white sneakers",
+        "Comfortable canvas sneakers",
+        "Simple slide sandals",
+        "Casual espadrilles",
+        "Breathable mesh runners",
+        "Slip-on loafers",
+        "Sporty sandals",
+        "Lightweight trainers"
+      ],
+      "jewelry/accessory": [
+        "Simple pendant necklace",
+        "Everyday watch",
+        "Small hoop earrings",
+        "Leather bracelet",
+        "Minimalist ring",
+        "Baseball cap"
+      ],
+      "bag": [
+        "Canvas tote bag",
+        "Casual backpack",
+        "Crossbody bag",
+        "Nylon duffle",
+        "Beach bag"
+      ]
+    },
+    "winter": {
+      "shoes": [
+        "Versatile chelsea boots",
+        "Casual lace-up boots",
+        "Comfortable winter sneakers",
+        "Insulated hiking boots",
+        "Slip-on winter boots"
+      ],
+      "jewelry/accessory": [
+        "Simple pendant necklace",
+        "Everyday watch",
+        "Knit beanie",
+        "Leather gloves",
+        "Wool scarf"
+      ],
+      "bag": [
+        "Casual backpack",
+        "Canvas tote",
+        "Crossbody bag",
+        "Weekender bag"
+      ]
+    }
+  }
+}

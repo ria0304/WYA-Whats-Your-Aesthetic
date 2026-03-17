@@ -1,0 +1,32 @@
+{
+  "mediterranean": [
+    "turkey", "greece", "italy", "spain", "croatia", "morocco", "egypt", 
+    "lebanon", "israel", "tunisia", "algeria", "cyprus", "malta"
+  ],
+  "middle_eastern": [
+    "uae", "saudi arabia", "qatar", "kuwait", "oman", "jordan", "iraq", 
+    "iran", "syria", "bahrain"
+  ],
+  "asian": [
+    "japan", "china", "south korea", "thailand", "vietnam", "india", 
+    "indonesia", "malaysia", "singapore", "philippines", "taiwan", 
+    "cambodia", "laos", "myanmar", "nepal", "sri lanka"
+  ],
+  "european": [
+    "france", "germany", "uk", "netherlands", "belgium", "switzerland", 
+    "austria", "sweden", "norway", "denmark", "finland", "iceland", 
+    "ireland", "portugal", "poland", "czech republic", "hungary", 
+    "romania", "bulgaria"
+  ],
+  "north_american": [
+    "usa", "canada", "mexico"
+  ],
+  "south_american": [
+    "brazil", "argentina", "peru", "colombia", "chile", "ecuador", 
+    "bolivia", "venezuela"
+  ],
+  "african": [
+    "south africa", "kenya", "nigeria", "ghana", "ethiopia", "tanzania", 
+    "uganda", "rwanda", "senegal", "mali"
+  ]
+}

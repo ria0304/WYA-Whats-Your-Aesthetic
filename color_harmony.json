@@ -1,0 +1,40 @@
+{
+  "complementary": {
+    "Red": ["Green", "Teal", "Emerald"],
+    "Blue": ["Orange", "Coral", "Peach"],
+    "Green": ["Red", "Burgundy", "Rose"],
+    "Yellow": ["Purple", "Lavender", "Violet"],
+    "Purple": ["Yellow", "Mustard", "Gold"],
+    "Orange": ["Blue", "Navy", "Teal"],
+    "Pink": ["Green", "Sage", "Mint"],
+    "Burgundy": ["Sage", "Mint", "Teal"],
+    "Navy": ["Orange", "Coral", "Mustard"],
+    "Teal": ["Coral", "Burgundy", "Rose"],
+    "Brown": ["Blue", "Teal", "Sage"],
+    "Beige": ["Navy", "Brown", "Olive"],
+    "Tan": ["Navy", "Burgundy", "Olive"]
+  },
+  "analogous": {
+    "Red": ["Burgundy", "Orange", "Coral", "Pink"],
+    "Blue": ["Navy", "Teal", "Purple", "Lavender"],
+    "Green": ["Sage", "Mint", "Olive", "Teal"],
+    "Yellow": ["Mustard", "Gold", "Orange", "Peach"],
+    "Purple": ["Lavender", "Mauve", "Plum", "Burgundy"],
+    "Orange": ["Coral", "Peach", "Mustard", "Rust"],
+    "Brown": ["Tan", "Camel", "Beige", "Caramel"]
+  },
+  "monochromatic": {
+    "Red": ["Burgundy", "Maroon", "Rose", "Pink"],
+    "Blue": ["Navy", "Royal Blue", "Light Blue", "Sky Blue"],
+    "Green": ["Forest Green", "Sage", "Mint", "Olive"],
+    "Brown": ["Tan", "Camel", "Beige", "Cream", "Caramel", "Mocha", "Chocolate"],
+    "Gray": ["Charcoal", "Silver", "White", "Black"]
+  },
+  "neutrals": ["Black", "White", "Gray", "Beige", "Cream", "Navy", "Denim", "Brown", "Tan", "Charcoal"],
+  "seasonal": {
+    "summer": ["White", "Cream", "Pastels", "Light Blue", "Mint", "Coral", "Yellow", "Beige"],
+    "winter": ["Black", "Charcoal", "Burgundy", "Navy", "Emerald", "Plum", "Gray", "Brown"],
+    "spring": ["Blush", "Lavender", "Mint", "Baby Blue", "Cream", "Yellow", "Peach", "Coral"],
+    "fall": ["Burgundy", "Rust", "Olive", "Mustard", "Brown", "Camel", "Terracotta", "Tan"]
+  }
+}

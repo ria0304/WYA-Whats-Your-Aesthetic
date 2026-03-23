@@ -124,8 +124,6 @@ GLOBAL_CHAINS = load_json_data('global_chains.json', [])
 LOCAL_INDICATORS = load_json_data('local_indicators.json', [])
 
 # ====================== GEOAPIFY API CONFIGURATION ======================
-# Your FREE Geoapify API key - get one at https://myprojects.geoapify.com
-# No credit card required, 3000 requests/day free
 GEOAPIFY_API_KEY = "3e48b0904db44b08993cd8c2aa999b4f"  # <--- YOUR API KEY HERE
 
 # ====================== COLOR MATCHER CLASS ======================

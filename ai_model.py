@@ -255,7 +255,7 @@ class ColorMatcher:
         best_name = "Gray"
         
         for name, rgb_val in COLOR_DICTIONARY.items():
-            dist = (r - rgb_val[0])**2 + (g - rgb_val[1])**2 + (b - rgb_val[2])**2
+            dist = (r - rgb_val[0])**2 + (g - rgb_val[1])**2 + (b - rgb_val[2])**2  #Euclidean distance 
             if dist < min_dist:
                 min_dist = dist
                 best_name = name
@@ -569,8 +569,6 @@ class ColorMatcher:
 class LocalComputerVision:
     """
     Local CV Engine with upgraded segmentation and advanced color extraction.
-    FIXED: Better background removal to isolate ONLY the garment.
-    FIXED: Better distinction between jumpsuits, skirts, and pants using aspect ratio.
     """
     
     def decode_image(self, base64_str: str) -> np.ndarray:

@@ -15,7 +15,7 @@ from auth_utils import get_current_user, hash_password, verify_password, create_
 from ai_model import FashionAIModel  #from ai_model.py
 
 # Load env vars but let Uvicorn handle the logging config to avoid Windows multiprocessing errors
-load_dotenv()
+load_dotenv() # Loads variable from .env files
 logger = logging.getLogger("uvicorn.error")
 
 app = FastAPI(title="WYA API")

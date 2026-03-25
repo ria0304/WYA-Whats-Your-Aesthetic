@@ -1,0 +1,443 @@
+{
+  "patagonia": {
+    "total": 92,
+    "eco": 95,
+    "labor": 90,
+    "trans": 91,
+    "summary": "Industry leader in environmental responsibility and supply chain transparency. Uses recycled materials and repairs products for life."
+  },
+  "reformation": {
+    "total": 85,
+    "eco": 88,
+    "labor": 80,
+    "trans": 87,
+    "summary": "Strong focus on sustainable materials, carbon neutrality, and transparent manufacturing. Great for trendy sustainable fashion."
+  },
+  "everlane": {
+    "total": 78,
+    "eco": 75,
+    "labor": 80,
+    "trans": 80,
+    "summary": "Built on 'Radical Transparency' regarding costs and factories. Good ethical practices but room for improvement in materials."
+  },
+  "levi's": {
+    "total": 65,
+    "eco": 70,
+    "labor": 60,
+    "trans": 65,
+    "summary": "Good water-saving initiatives (Water<Less™ technology), improving transparency, but large scale presents challenges."
+  },
+  "nike": {
+    "total": 60,
+    "eco": 65,
+    "labor": 55,
+    "trans": 60,
+    "summary": "Mixed performance. Strong innovation in sustainable materials (Move to Zero), but labor concerns in supply chain persist."
+  },
+  "adidas": {
+    "total": 62,
+    "eco": 68,
+    "labor": 58,
+    "trans": 60,
+    "summary": "Good eco-initiatives with ocean plastic shoes. Labor practices improving but still have room for growth."
+  },
+  "gucci": {
+    "total": 70,
+    "eco": 72,
+    "labor": 75,
+    "trans": 65,
+    "summary": "Luxury sector leader in going carbon neutral and using sustainable materials. Part of Kering group with strong sustainability focus."
+  },
+  "prada": {
+    "total": 68,
+    "eco": 70,
+    "labor": 68,
+    "trans": 66,
+    "summary": "Committed to recycled nylon (Re-Nylon project). Increasing transparency in supply chain."
+  },
+  "Stella McCartney": {
+    "total": 88,
+    "eco": 90,
+    "labor": 85,
+    "trans": 89,
+    "summary": "Pioneer in luxury sustainable fashion. No animal products, strong circular economy principles."
+  },
+  "zara": {
+    "total": 45,
+    "eco": 40,
+    "labor": 50,
+    "trans": 45,
+    "summary": "Fast fashion model raises concerns about waste and labor conditions. Some sustainability initiatives but volume is high."
+  },
+  "h&m": {
+    "total": 52,
+    "eco": 55,
+    "labor": 50,
+    "trans": 50,
+    "summary": "Has sustainability initiatives (Conscious collection, garment collecting), but fast fashion volume undermines efforts."
+  },
+  "shein": {
+    "total": 15,
+    "eco": 10,
+    "labor": 20,
+    "trans": 15,
+    "summary": "Ultra-fast fashion with significant environmental and ethical concerns. Low transparency and high waste."
+  },
+  "uniqlo": {
+    "total": 55,
+    "eco": 50,
+    "labor": 60,
+    "trans": 55,
+    "summary": "Focus on durability and functionality (LifeWear). Transparency improving but labor practices need more disclosure."
+  },
+  "gap": {
+    "total": 48,
+    "eco": 45,
+    "labor": 50,
+    "trans": 48,
+    "summary": "Some sustainability goals but progress slow. Mixed labor records in supply chain."
+  },
+  "old navy": {
+    "total": 46,
+    "eco": 43,
+    "labor": 48,
+    "trans": 46,
+    "summary": "Part of Gap Inc. Affordable fast fashion with similar sustainability challenges."
+  },
+  "madewell": {
+    "total": 58,
+    "eco": 60,
+    "labor": 55,
+    "trans": 58,
+    "summary": "Good denim recycling program. Improving transparency but still part of larger corporate structure."
+  },
+  "allbirds": {
+    "total": 86,
+    "eco": 90,
+    "labor": 82,
+    "trans": 85,
+    "summary": "B Corp certified. Uses natural materials (wool, eucalyptus). Carbon neutral footprint labeling."
+  },
+  "veja": {
+    "total": 89,
+    "eco": 92,
+    "labor": 85,
+    "trans": 90,
+    "summary": "Fair trade sneakers. Uses organic cotton and wild rubber. Strong transparency and ethical sourcing."
+  },
+  "toms": {
+    "total": 70,
+    "eco": 65,
+    "labor": 72,
+    "trans": 73,
+    "summary": "One for One model. Investing in sustainable materials and ethical manufacturing."
+  },
+  "ralph lauren": {
+    "total": 52,
+    "eco": 50,
+    "labor": 53,
+    "trans": 52,
+    "summary": "Some sustainability goals set, but progress slow. Traditional luxury model with room for improvement."
+  },
+  "calvin klein": {
+    "total": 48,
+    "eco": 45,
+    "labor": 50,
+    "trans": 48,
+    "summary": "Part of PVH Corp. Some sustainability initiatives but transparency limited."
+  },
+  "tommy hilfiger": {
+    "total": 49,
+    "eco": 47,
+    "labor": 50,
+    "trans": 49,
+    "summary": "Also PVH Corp. Similar sustainability profile to Calvin Klein."
+  },
+  "the north face": {
+    "total": 62,
+    "eco": 68,
+    "labor": 58,
+    "trans": 60,
+    "summary": "Good recycled materials program. Parent company VF Corp has sustainability goals."
+  },
+  "columbia": {
+    "total": 58,
+    "eco": 60,
+    "labor": 56,
+    "trans": 58,
+    "summary": "Some eco-initiatives but transparency could improve."
+  },
+  "arcteryx": {
+    "total": 64,
+    "eco": 66,
+    "labor": 62,
+    "trans": 64,
+    "summary": "High-quality durable gear. Increasing use of recycled materials. Limited transparency."
+  },
+  "lululemon": {
+    "total": 61,
+    "eco": 63,
+    "labor": 60,
+    "trans": 60,
+    "summary": "Good durability (less waste). Some sustainable material initiatives. Labor practices improving."
+  },
+  "fila": {
+    "total": 42,
+    "eco": 40,
+    "labor": 44,
+    "trans": 42,
+    "summary": "Limited sustainability information available."
+  },
+  "puma": {
+    "total": 58,
+    "eco": 62,
+    "labor": 55,
+    "trans": 57,
+    "summary": "Some sustainability programs. Part of Kering group historically, now independent."
+  },
+  "under armour": {
+    "total": 50,
+    "eco": 48,
+    "labor": 52,
+    "trans": 50,
+    "summary": "Some eco-initiatives but transparency limited."
+  },
+  "asos": {
+    "total": 44,
+    "eco": 42,
+    "labor": 45,
+    "trans": 44,
+    "summary": "Online fast fashion. Some sustainability efforts but volume concerns."
+  },
+  "boohoo": {
+    "total": 22,
+    "eco": 20,
+    "labor": 25,
+    "trans": 20,
+    "summary": "Ultra-fast fashion with significant ethical and environmental concerns."
+  },
+  "prettylittlething": {
+    "total": 20,
+    "eco": 18,
+    "labor": 22,
+    "trans": 20,
+    "summary": "Part of Boohoo Group. Similar fast fashion concerns."
+  },
+  "mango": {
+    "total": 46,
+    "eco": 45,
+    "labor": 47,
+    "trans": 46,
+    "summary": "Some sustainability commitments but transparency limited."
+  },
+  "cos": {
+    "total": 58,
+    "eco": 60,
+    "labor": 56,
+    "trans": 58,
+    "summary": "Part of H&M group but better quality/fewer collections. Minimalist aesthetic with some sustainable materials."
+  },
+  "& other stories": {
+    "total": 54,
+    "eco": 55,
+    "labor": 53,
+    "trans": 54,
+    "summary": "Also H&M group. Similar sustainability profile to COS."
+  },
+  "arf": {
+    "total": 42,
+    "eco": 40,
+    "labor": 43,
+    "trans": 42,
+    "summary": "Limited sustainability data available."
+  },
+  "zara home": {
+    "total": 44,
+    "eco": 42,
+    "labor": 45,
+    "trans": 44,
+    "summary": "Part of Inditex (Zara). Similar sustainability approach."
+  },
+  "bershka": {
+    "total": 43,
+    "eco": 41,
+    "labor": 44,
+    "trans": 43,
+    "summary": "Also Inditex. Young fast fashion with similar profile."
+  },
+  "pull&bear": {
+    "total": 43,
+    "eco": 41,
+    "labor": 44,
+    "trans": 43,
+    "summary": "Inditex brand. Fast fashion for younger demographic."
+  },
+  "stradivarius": {
+    "total": 43,
+    "eco": 41,
+    "labor": 44,
+    "trans": 43,
+    "summary": "Inditex brand. Similar to Pull&Bear."
+  },
+  "oysho": {
+    "total": 45,
+    "eco": 44,
+    "labor": 45,
+    "trans": 45,
+    "summary": "Inditex lingerie/activewear. Some sustainable collections."
+  },
+  "massimo dutti": {
+    "total": 48,
+    "eco": 47,
+    "labor": 48,
+    "trans": 48,
+    "summary": "Inditex premium brand. Better quality but similar transparency."
+  },
+  "superdry": {
+    "total": 44,
+    "eco": 42,
+    "labor": 45,
+    "trans": 44,
+    "summary": "Limited sustainability information."
+  },
+  "jack & jones": {
+    "total": 41,
+    "eco": 40,
+    "labor": 42,
+    "trans": 41,
+    "summary": "Part of Bestseller. Some initiatives but limited transparency."
+  },
+  "vero moda": {
+    "total": 42,
+    "eco": 41,
+    "labor": 43,
+    "trans": 42,
+    "summary": "Also Bestseller. Similar profile to Jack & Jones."
+  },
+  "only": {
+    "total": 41,
+    "eco": 40,
+    "labor": 42,
+    "trans": 41,
+    "summary": "Bestseller brand. Fast fashion with limited transparency."
+  },
+  "selected": {
+    "total": 43,
+    "eco": 42,
+    "labor": 44,
+    "trans": 43,
+    "summary": "Bestseller's premium brand. Slightly better quality."
+  },
+  "gant": {
+    "total": 48,
+    "eco": 47,
+    "labor": 48,
+    "trans": 48,
+    "summary": "Preppy heritage brand. Some sustainability initiatives."
+  },
+  "hugo boss": {
+    "total": 52,
+    "eco": 50,
+    "labor": 53,
+    "trans": 52,
+    "summary": "Some sustainability goals, improving transparency."
+  },
+  "armani": {
+    "total": 50,
+    "eco": 48,
+    "labor": 51,
+    "trans": 50,
+    "summary": "Limited sustainability information. Some fur-free commitments."
+  },
+  "versace": {
+    "total": 46,
+    "eco": 44,
+    "labor": 47,
+    "trans": 46,
+    "summary": "Limited sustainability data. Part of Capri Holdings."
+  },
+  "burberry": {
+    "total": 64,
+    "eco": 66,
+    "labor": 62,
+    "trans": 64,
+    "summary": "Stopped burning unsold goods. Good transparency, some sustainable materials."
+  },
+  "chanel": {
+    "total": 52,
+    "eco": 50,
+    "labor": 53,
+    "trans": 52,
+    "summary": "Limited transparency. Some sustainability commitments but privately held."
+  },
+  "dior": {
+    "total": 48,
+    "eco": 46,
+    "labor": 49,
+    "trans": 48,
+    "summary": "Part of LVMH. Limited public sustainability data."
+  },
+  "louis vuitton": {
+    "total": 46,
+    "eco": 44,
+    "labor": 47,
+    "trans": 46,
+    "summary": "LVMH group has sustainability goals but limited transparency per brand."
+  },
+  "hermes": {
+    "total": 44,
+    "eco": 42,
+    "labor": 45,
+    "trans": 44,
+    "summary": "Focus on craftsmanship and durability (less waste). Limited transparency on labor."
+  },
+  "cartier": {
+    "total": 58,
+    "eco": 60,
+    "labor": 56,
+    "trans": 58,
+    "summary": "Part of Richemont. Some responsible sourcing initiatives for gold/diamonds."
+  },
+  "tiffany & co": {
+    "total": 62,
+    "eco": 65,
+    "labor": 60,
+    "trans": 61,
+    "summary": "Good responsible sourcing for diamonds and precious metals."
+  },
+  "pandora": {
+    "total": 64,
+    "eco": 68,
+    "labor": 62,
+    "trans": 62,
+    "summary": "Committed to using recycled silver and gold. Good transparency."
+  },
+  "swarovski": {
+    "total": 58,
+    "eco": 60,
+    "labor": 56,
+    "trans": 58,
+    "summary": "Some sustainability initiatives. Crystal is lead-free since 2012."
+  },
+  "ray-ban": {
+    "total": 48,
+    "eco": 46,
+    "labor": 49,
+    "trans": 48,
+    "summary": "Part of EssilorLuxottica. Limited sustainability data."
+  },
+  "oakley": {
+    "total": 46,
+    "eco": 44,
+    "labor": 47,
+    "trans": 46,
+    "summary": "Also EssilorLuxottica. Similar limited data."
+  },
+  "warby parker": {
+    "total": 72,
+    "eco": 70,
+    "labor": 73,
+    "trans": 72,
+    "summary": "B Corp certified. Good social mission (buy a pair, give a pair)."
+  }
+}

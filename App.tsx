@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { Home, Box, Sparkles, Plane, User, ChevronLeft } from 'lucide-react';
@@ -14,6 +13,9 @@ import Evolution from './views/Evolution';
 import Profile from './views/Profile';
 import StyleQuiz from './views/StyleQuiz';
 import Curate from './views/Curate';
+import AestheticAura from './views/AestheticAura';
+import TheArchive from './views/TheArchive';
+import DailyDrop from './views/DailyDrop';
 import { AppTab, User as UserType } from './types';
 import { api } from './services/api';
 
@@ -137,6 +139,9 @@ const App: React.FC = () => {
           <Route path="/travel" element={<VacationShop />} />
           <Route path="/evolution" element={<Evolution />} />
           <Route path="/curate" element={<Curate />} />
+          <Route path="/aesthetic-aura" element={<AestheticAura />} />
+          <Route path="/archive" element={<TheArchive />} />
+          <Route path="/daily-drop" element={<DailyDrop />} />
           <Route path="/me" element={<Profile user={user} onUpdateUser={setUser} onLogout={handleLogout} />} />
           <Route path="/quiz" element={<StyleQuiz onComplete={async (dnaSummary) => { 
             try {

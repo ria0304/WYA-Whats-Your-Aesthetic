@@ -1,4 +1,3 @@
-
 import sqlite3
 import logging
 from datetime import datetime
@@ -78,6 +77,7 @@ def init_db():
         last_worn TEXT, 
         wear_count INTEGER DEFAULT 0, 
         created_at TEXT, 
+        embedding TEXT,
         FOREIGN KEY (user_id) REFERENCES users (user_id))''')
 
     # Activity Log
@@ -95,6 +95,44 @@ def init_db():
         colors TEXT,
         brands TEXT,
         updated_at TEXT,
+        FOREIGN KEY (user_id) REFERENCES users (user_id))''')
+    
+    # Saved Outfits table (for manual curation and daily drops)
+    cursor.execute('''CREATE TABLE IF NOT EXISTS saved_outfits (
+        outfit_id TEXT PRIMARY KEY,
+        user_id TEXT,
+        name TEXT,
+        vibe TEXT,
+        items_json TEXT,
+        is_daily INTEGER DEFAULT 0,
+        created_date TEXT,
+        worn_count INTEGER DEFAULT 0,
+        last_worn TEXT,
+        FOREIGN KEY (user_id) REFERENCES users (user_id))''')
+    
+    # Outfit Wear History (for tracking when outfits were worn)
+    cursor.execute('''CREATE TABLE IF NOT EXISTS outfit_wear_history (
+        wear_id INTEGER PRIMARY KEY AUTOINCREMENT,
+        outfit_id TEXT,
+        user_id TEXT,
+        worn_at TEXT,
+        FOREIGN KEY (outfit_id) REFERENCES saved_outfits (outfit_id),
+        FOREIGN KEY (user_id) REFERENCES users (user_id))''')
+    
+    # Wardrobe Archive (for soft-deleted items)
+    cursor.execute('''CREATE TABLE IF NOT EXISTS wardrobe_archive (
+        item_id TEXT PRIMARY KEY,
+        user_id TEXT,
+        name TEXT,
+        category TEXT,
+        color TEXT,
+        fabric TEXT,
+        brand TEXT,
+        image_url TEXT,
+        wear_count INTEGER,
+        created_at TEXT,
+        deleted_at TEXT,
+        stats_json TEXT,
         FOREIGN KEY (user_id) REFERENCES users (user_id))''')
     
     conn.commit()

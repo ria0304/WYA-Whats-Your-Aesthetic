@@ -129,10 +129,24 @@ def init_db():
         fabric TEXT,
         brand TEXT,
         image_url TEXT,
+        bg_removed_url TEXT,
         wear_count INTEGER,
         created_at TEXT,
         deleted_at TEXT,
+        archive_reason TEXT,
+        memory_note TEXT,
         stats_json TEXT,
+        FOREIGN KEY (user_id) REFERENCES users (user_id))''')
+    
+    # Push Notifications subscriptions
+    cursor.execute('''CREATE TABLE IF NOT EXISTS push_subscriptions (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id TEXT UNIQUE,
+        endpoint TEXT,
+        p256dh TEXT,
+        auth TEXT,
+        created_at TEXT,
+        updated_at TEXT,
         FOREIGN KEY (user_id) REFERENCES users (user_id))''')
     
     conn.commit()

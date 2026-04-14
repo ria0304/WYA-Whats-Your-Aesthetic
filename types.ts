@@ -1,11 +1,9 @@
-
 export interface User {
   id: string;
   name: string;
   email: string;
   location: string;
   birthday: string;
-  // Added age property to fix type definition errors in App.tsx and Login.tsx
   age: string;
   gender: string;
   isLoggedIn: boolean;
@@ -21,6 +19,45 @@ export interface WardrobeItem {
   imageUrl?: string;
   isFavorite: boolean;
   wearCount?: number;
+  // New: background removal
+  bgRemovedUrl?: string;
+}
+
+export interface ArchivedItem {
+  id: string;
+  name: string;
+  category: string;
+  color: string;
+  fabric: string;
+  imageUrl?: string;
+  wearCount: number;
+  topSeason: string;
+  topPairedWith: string;
+  archivedDate: string;
+  archiveReason: 'sold' | 'worn-out' | 'donated' | 'gifted';
+  yearAcquired?: number;
+  memoryNote?: string;
+}
+
+export interface OutfitSet {
+  id: string;
+  name: string;
+  vibe: string;
+  items: WardrobeItem[];
+  isManual?: boolean;
+  isDaily?: boolean;
+  createdDate?: string;
+  // New: server-side persistence
+  serverId?: number;
+  wornAt?: string | null;
+}
+
+export interface GapItem {
+  category: string;
+  description: string;
+  reason: string;
+  affiliateQuery: string;
+  priority: 'high' | 'medium' | 'low';
 }
 
 export interface WeatherData {

@@ -1,4 +1,5 @@
-
+# ai_model.py - Thin orchestrator for all AI features
+# Delegates to specialized services for similarity matching, outfit generation, gap analysis, etc.
 
 import json
 import logging
@@ -8,14 +9,16 @@ from typing import Any, Dict, List
 
 import numpy as np
 
-from services.brand_auditor   import audit_brand           # noqa: F401 (re-exported)
-from services.color_matcher   import ColorMatcher
+from services.brand_auditor import audit_brand
+from services.color_matcher import ColorMatcher
 from services.computer_vision import LocalComputerVision
-from services.data_loader     import COLOR_HARMONY, FASHION_DATA
+from services.data_loader import COLOR_HARMONY, FASHION_DATA
 from services.fabric_classifier import FabricClassifier
-from services.style_profile   import StyleProfile
-from services.trip_curator    import curate_trip            # noqa: F401 (re-exported)
-from services.weather_service import weather_styling        # noqa: F401 (re-exported)
+from services.style_profile import StyleProfile
+from services.trip_curator import curate_trip
+from services.weather_service import weather_styling
+from services.outfit_generator import OutfitGenerator
+from services.notification_service import NotificationService
 
 logger = logging.getLogger(__name__)
 
@@ -30,12 +33,14 @@ except ImportError:
 
 class FashionAIModel:
     """
-    Thin orchestrator.  Each method delegates to the relevant service.
-    Add new features by extending the appropriate service module.
+    Thin orchestrator. Each method delegates to the relevant service.
+    Supports: similarity matching, color harmony, gap analysis, outfit generation,
+    background removal, aesthetic aura, and push notifications.
     """
 
-    vision     = LocalComputerVision()
+    vision = LocalComputerVision()
     classifier = FabricClassifier()
+    outfit_generator = OutfitGenerator()
 
     _user_profiles: Dict[str, Dict[str, Any]] = {}
 
@@ -63,37 +68,37 @@ class FashionAIModel:
     @staticmethod
     def get_style_evolution(user_id: str) -> Dict[str, Any]:
         profile = FashionAIModel.get_user_style_profile(user_id)
-        today       = datetime.now().strftime("%b %d").upper()
-        week_ago    = (datetime.now() - timedelta(days=7)).strftime("%b %d").upper()
+        today = datetime.now().strftime("%b %d").upper()
+        week_ago = (datetime.now() - timedelta(days=7)).strftime("%b %d").upper()
         two_wks_ago = (datetime.now() - timedelta(days=14)).strftime("%b %d").upper()
 
         timeline = [
-            {"date": today,       "archetype": profile.get("style_archetype", "Classic"),
+            {"date": today, "archetype": profile.get("style_archetype", "Classic"),
              "style": (profile.get("style_vibes") or ["Classic"])[0], "mood": "Current",
              "progress": profile.get("comfort_level", 50)},
-            {"date": week_ago,    "archetype": "Classic", "style": "Classic & Sophisticated",
-             "mood": "Exploring",  "progress": 45},
-            {"date": two_wks_ago, "archetype": "Casual",  "style": "Casual Comfort",
-             "mood": "Exploring",  "progress": 40},
+            {"date": week_ago, "archetype": "Classic", "style": "Classic & Sophisticated",
+             "mood": "Exploring", "progress": 45},
+            {"date": two_wks_ago, "archetype": "Casual", "style": "Casual Comfort",
+             "mood": "Exploring", "progress": 40},
         ]
-        cp_name   = profile.get("color_preference_name", "Classic Monochrome")
+        cp_name = profile.get("color_preference_name", "Classic Monochrome")
         cp_colors = profile.get("color_preference_colors", ["Black", "White", "Gray"])
 
         return {
             "current_style": {
-                "archetype":        profile.get("style_archetype", "Classic"),
-                "aesthetic":        profile.get("everyday_look", "Classic & Sophisticated"),
+                "archetype": profile.get("style_archetype", "Classic"),
+                "aesthetic": profile.get("everyday_look", "Classic & Sophisticated"),
                 "color_preference": cp_name,
-                "colors":           cp_colors,
-                "comfort_level":    profile.get("comfort_level", 50),
-                "silhouette":       profile.get("silhouette_preference", "Draped & Flowing"),
+                "colors": cp_colors,
+                "comfort_level": profile.get("comfort_level", 50),
+                "silhouette": profile.get("silhouette_preference", "Draped & Flowing"),
             },
             "timeline": timeline,
             "insights": {
-                "dominant_style":    profile.get("style_archetype", "Classic"),
-                "style_change":      "+10%",
+                "dominant_style": profile.get("style_archetype", "Classic"),
+                "style_change": "+10%",
                 "color_preferences": profile.get("preferred_colors", ["Black", "White"])[:5],
-                "style_confidence":  profile.get("comfort_level", 50),
+                "style_confidence": profile.get("comfort_level", 50),
                 "recommendations": [
                     f"Try adding more {cp_colors[0] if cp_colors else 'neutral'} pieces",
                     "Experiment with layering this season",
@@ -103,7 +108,7 @@ class FashionAIModel:
         }
 
     # ------------------------------------------------------------------
-    # Garment analysis
+    # Garment analysis (autotag)
     # ------------------------------------------------------------------
 
     @staticmethod
@@ -117,12 +122,12 @@ class FashionAIModel:
             if img is None or img.size == 0 or np.all(img == 0):
                 raise ValueError("Failed to decode image or image is empty")
 
-            mask          = FashionAIModel.vision.get_improved_mask(img)
+            mask = FashionAIModel.vision.get_improved_mask(img)
             mask_coverage = np.sum(mask > 0) / (img.shape[0] * img.shape[1]) * 100
-            category      = FashionAIModel.vision.identify_garment(img, mask)
+            category = FashionAIModel.vision.identify_garment(img, mask)
             hex_color, color_name, rgb = FashionAIModel.vision.get_dominant_color(img, mask)
-            texture       = FashionAIModel.vision.analyze_texture_properties(img, mask)
-            fabric        = FashionAIModel.classifier.classify(
+            texture = FashionAIModel.vision.analyze_texture_properties(img, mask)
+            fabric = FashionAIModel.classifier.classify(
                 variance=texture["variance"], brightness=texture["brightness"],
                 color=color_name, category=category,
             ) or "Cotton"
@@ -130,18 +135,18 @@ class FashionAIModel:
             name_parts = ([fabric] if fabric not in ("Cotton", "Polyester") else []) + [color_name, category]
 
             return {
-                "success":         True,
-                "name":            " ".join(name_parts),
-                "category":        str(category),
-                "fabric":          str(fabric),
-                "color":           str(color_name),
-                "hex_color":       str(hex_color),
-                "rgb":             [int(rgb[0]), int(rgb[1]), int(rgb[2])],
-                "details":         f"AI Scan: {fabric} {category} | Color: {color_name} ({hex_color})",
-                "confidence":      0.96,
+                "success": True,
+                "name": " ".join(name_parts),
+                "category": str(category),
+                "fabric": str(fabric),
+                "color": str(color_name),
+                "hex_color": str(hex_color),
+                "rgb": [int(rgb[0]), int(rgb[1]), int(rgb[2])],
+                "details": f"AI Scan: {fabric} {category} | Color: {color_name} ({hex_color})",
+                "confidence": 0.96,
                 "texture_variance": float(round(texture["variance"], 2)),
-                "brightness":      float(round(texture["brightness"], 2)),
-                "mask_coverage":   float(round(mask_coverage, 2)),
+                "brightness": float(round(texture["brightness"], 2)),
+                "mask_coverage": float(round(mask_coverage, 2)),
             }
 
         except Exception as exc:
@@ -153,27 +158,28 @@ class FashionAIModel:
             }
 
     # ------------------------------------------------------------------
-    # Outfit suggestions
+    # Outfit suggestions with similarity matching (Feature 1)
     # ------------------------------------------------------------------
 
     @staticmethod
     async def get_outfit_suggestion(
         image_data: str, variation: int = 0, user_id: str = None, season: str = "summer"
     ) -> Dict[str, Any]:
+        """Get outfit suggestions with real similarity matching."""
         try:
             tag = await FashionAIModel.autotag_garment(image_data)
             if not tag.get("success"):
                 raise ValueError("Failed to identify garment")
 
             category = tag["category"]
-            color    = tag["color"]
-            rgb      = tag["rgb"]
+            color = tag["color"]
+            rgb = tag["rgb"]
             detected = tag["name"]
 
-            profile   = (FashionAIModel.get_user_style_profile(user_id)
-                         if user_id else StyleProfile.get_default_profile())
+            profile = (FashionAIModel.get_user_style_profile(user_id)
+                       if user_id else StyleProfile.get_default_profile())
             archetype = profile.get("style_archetype", "Casual")
-            vibes     = profile.get("style_vibes", [])
+            vibes = profile.get("style_vibes", [])
             silhouette = profile.get("silhouette_preference", "Draped & Flowing")
 
             vibe_map = {"Minimalist": "minimalist", "Avant-Garde": "avant-garde",
@@ -183,37 +189,37 @@ class FashionAIModel:
             random.seed(hash(image_data[:100]) + variation * 1000 + int(datetime.utcnow().timestamp() % 100))
 
             matching = ColorMatcher.get_matching_colors((rgb[0], rgb[1], rgb[2]), variation, count=6)
-            best     = matching[1 if variation % 3 == 0 and len(matching) > 2 else 0] if matching else {
+            best = matching[1 if variation % 3 == 0 and len(matching) > 2 else 0] if matching else {
                 "color": "White", "hex": "#ffffff", "rgb": [255, 255, 255],
                 "match_type": "fallback", "confidence": 0.5, "reason": "Classic white",
             }
             best_color = best["color"]
 
-            shoe_sug    = await FashionAIModel._style_suggestion("shoes",             vibe_key, season, variation,     best_color)
+            shoe_sug = await FashionAIModel._style_suggestion("shoes", vibe_key, season, variation, best_color)
             jewelry_sug = await FashionAIModel._style_suggestion("jewelry/accessory", vibe_key, season, variation + 1, best_color)
-            bag_sug     = await FashionAIModel._style_suggestion("bag",               vibe_key, season, variation + 2, best_color)
+            bag_sug = await FashionAIModel._style_suggestion("bag", vibe_key, season, variation + 2, best_color)
 
-            match_piece = (f"{best_color} Top"    if category in ("Pants", "Shorts", "Skirt") else
+            match_piece = (f"{best_color} Top" if category in ("Pants", "Shorts", "Skirt") else
                            f"{best_color} Bottom" if category == "Top" else
                            "" if category in ("Dress", "Jumpsuit") else
                            f"{best_color} Matching Piece")
 
             styling_tip = await FashionAIModel._style_tip(vibe_key, best_color, season, variation)
-            dna_msg     = f"Based on your {', '.join(vibes) if vibes else archetype} Style DNA"
+            dna_msg = f"Based on your {', '.join(vibes) if vibes else archetype} Style DNA"
 
             return {
-                "style_dna":       dna_msg,
-                "season":          f" {season.capitalize()}",
-                "vibe":            archetype.title(),
+                "style_dna": dna_msg,
+                "season": f" {season.capitalize()}",
+                "vibe": archetype.title(),
                 "identified_item": detected,
-                "match_piece":     match_piece,
-                "jewelry":         jewelry_sug,
-                "shoes":           shoe_sug,
-                "bag":             bag_sug,
-                "best_match":      best,
+                "match_piece": match_piece,
+                "jewelry": jewelry_sug,
+                "shoes": shoe_sug,
+                "bag": bag_sug,
+                "best_match": best,
                 "matching_colors": matching,
-                "styling_tips":    styling_tip,
-                "silhouette":      silhouette,
+                "styling_tips": styling_tip,
+                "silhouette": silhouette,
             }
 
         except Exception as exc:
@@ -300,23 +306,34 @@ class FashionAIModel:
         return tip.replace("{accent_color}", accent_color)
 
     # ------------------------------------------------------------------
-    # Wardrobe-level methods
+    # Wardrobe-level methods (Gap Analysis, Outfit Generation)
     # ------------------------------------------------------------------
 
     @staticmethod
     async def generate_outfits_from_wardrobe(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """Generate outfits using color harmony (Feature 2)."""
         if not fashion_matcher:
             return []
-        outfits = []
-        for style in ("casual", "business", "streetwear"):
-            outfit = fashion_matcher.create_complete_outfit(items, style=style)
-            if outfit and "items" in outfit:
-                outfits.append({"name": outfit["name"], "vibe": outfit["vibe"],
-                                 "item_ids": outfit["item_ids"]})
-        return outfits
+        return FashionAIModel.outfit_generator.generate_outfits_from_wardrobe(items)
+
+    @staticmethod
+    async def get_gap_analysis(user_id: str, wardrobe_items: List[Dict[str, Any]], db_conn) -> Dict[str, Any]:
+        """Analyze wardrobe gaps based on Style DNA (Feature 3)."""
+        return FashionAIModel.outfit_generator.analyze_wardrobe_gaps(user_id, wardrobe_items, db_conn)
+
+    @staticmethod
+    async def get_daily_drop(user_id: str, wardrobe_items: List[Dict[str, Any]], location: str = None) -> Dict[str, Any]:
+        """Generate daily drop with color harmony (Feature 2)."""
+        return FashionAIModel.outfit_generator.generate_daily_drop(user_id, wardrobe_items, location)
+
+    @staticmethod
+    async def get_aesthetic_aura(user_id: str, wardrobe_items: List[Dict[str, Any]], db_conn) -> Dict[str, Any]:
+        """Generate aesthetic aura data for share card (Feature 8)."""
+        return FashionAIModel.outfit_generator.generate_aesthetic_aura(user_id, wardrobe_items, db_conn)
 
     @staticmethod
     def get_evolution_data(items: List[Dict[str, Any]], history: List[Dict[str, Any]] = []) -> Dict[str, Any]:
+        """Get style evolution timeline data."""
         if not fashion_matcher:
             return {
                 "timeline": [],
@@ -339,17 +356,17 @@ class FashionAIModel:
             except Exception:
                 style_list = []
             primary = style_list[0] if style_list else entry.get("archetype", "Mapped")
-            mood    = ("Clean & Sharp" if "Minimalist" in primary else
-                       "Bold & Expressive" if "Streetwear" in primary else
-                       "Nostalgic" if "Vintage" in primary else "Exploring")
+            mood = ("Clean & Sharp" if "Minimalist" in primary else
+                    "Bold & Expressive" if "Streetwear" in primary else
+                    "Nostalgic" if "Vintage" in primary else "Exploring")
             timeline.append({
                 "period": _fmt(entry.get("created_at", "")),
-                "stage":    primary,
-                "style":    " & ".join(style_list[:2]),
-                "color":    "Personalized",
-                "mood":     mood,
+                "stage": primary,
+                "style": " & ".join(style_list[:2]),
+                "color": "Personalized",
+                "mood": mood,
                 "progress": entry.get("comfort_level", 50),
-                "items":    len(items),
+                "items": len(items),
                 "key_item": "DNA Profile",
                 "is_current": i == 0,
             })
@@ -357,17 +374,59 @@ class FashionAIModel:
         return {
             "timeline": timeline,
             "insights": {
-                "dominant_style":    analysis.get("dominant_style", "Casual"),
-                "style_change":      f"{analysis.get('wardrobe_health_score', 50)}%",
+                "dominant_style": analysis.get("dominant_style", "Casual"),
+                "style_change": f"{analysis.get('wardrobe_health_score', 50)}%",
                 "color_preferences": analysis.get("color_preferences", [])[:5],
-                "style_confidence":  analysis.get("wardrobe_health_score", 50),
-                "wardrobe_size":     analysis.get("total_items", len(items)),
-                "recommendations":   analysis.get("recommendations", []),
+                "style_confidence": analysis.get("wardrobe_health_score", 50),
+                "wardrobe_size": analysis.get("total_items", len(items)),
+                "recommendations": analysis.get("recommendations", []),
             },
         }
 
     # ------------------------------------------------------------------
-    # Legacy / compat helpers (kept for ai_matcher.py calls)
+    # Background Removal (Feature 7)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    async def remove_background(image_data: str) -> Dict[str, Any]:
+        """Remove background from garment image."""
+        try:
+            img = FashionAIModel.vision.decode_image(image_data)
+            if img is None or img.size == 0:
+                raise ValueError("Failed to decode image")
+
+            result = FashionAIModel.vision.remove_background(img)
+            result_base64 = FashionAIModel.vision.encode_image_to_base64(result)
+
+            return {
+                "success": True,
+                "bg_removed_image": result_base64,
+                "message": "Background removed successfully"
+            }
+        except Exception as exc:
+            logger.error(f"Background removal failed: {exc}")
+            return {
+                "success": False,
+                "error": str(exc),
+                "bg_removed_image": None
+            }
+
+    # ------------------------------------------------------------------
+    # Push Notifications (Feature 10)
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    async def send_daily_drop_notification(user_id: str, outfit_name: str, db_conn) -> bool:
+        """Send push notification for daily drop."""
+        return await NotificationService.send_daily_drop_notification(user_id, outfit_name, db_conn)
+
+    @staticmethod
+    async def save_push_subscription(user_id: str, subscription_data: Dict[str, Any], db_conn) -> bool:
+        """Save push notification subscription."""
+        return await NotificationService.save_subscription(user_id, subscription_data, db_conn)
+
+    # ------------------------------------------------------------------
+    # Legacy / compat helpers
     # ------------------------------------------------------------------
 
     @staticmethod

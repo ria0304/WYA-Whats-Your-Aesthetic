@@ -13,6 +13,11 @@ from dotenv import load_dotenv
 from database import get_db, init_db
 from auth_utils import get_current_user, hash_password, verify_password, create_access_token, UserProfile
 from ai_model import FashionAIModel
+from schemas import (
+    UserRegister, UserLogin, OutfitCreate, WardrobeItemCreate, 
+    WardrobeItemUpdate, StyleDNACreate, NotificationPreferencesUpdate,
+    GreenAuditRequest, WeatherRequest, TripRequest
+)
 
 # Load env vars
 load_dotenv()
@@ -20,15 +25,18 @@ logger = logging.getLogger("uvicorn.error")
 
 app = FastAPI(title="WYA API")
 
+# CORS - Allow only frontend origins
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "http://localhost:3000",
         "http://127.0.0.1:3000",
+        "http://localhost:5173",
+        "http://127.0.0.1:5173",
     ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 @app.on_event("startup")
@@ -39,15 +47,15 @@ def on_startup():
 # ====================== AUTHENTICATION ======================
 
 @app.post("/api/auth/register")
-async def register(data: Dict[str, Any]):
+async def register(data: UserRegister):
     conn = get_db()
     try:
         user_id = str(uuid.uuid4())
-        hashed = hash_password(data['password'])
+        hashed = hash_password(data.password)
         now = datetime.utcnow().isoformat()
         conn.execute(
             "INSERT INTO users (user_id, email, full_name, birthday, gender, location, hashed_password, created_at) VALUES (?,?,?,?,?,?,?,?)",
-            (user_id, data['email'], data['full_name'], data.get('birthday', ''), data.get('gender', 'Female'), data.get('location', 'Global'), hashed, now)
+            (user_id, data.email, data.full_name, data.birthday or '', data.gender or 'Female', data.location or 'Global', hashed, now)
         )
         conn.commit()
         token = create_access_token(user_id)
@@ -60,11 +68,11 @@ async def register(data: Dict[str, Any]):
         conn.close()
 
 @app.post("/api/auth/login")
-async def login(credentials: Dict[str, str]):
+async def login(credentials: UserLogin):
     conn = get_db()
-    user = conn.execute("SELECT * FROM users WHERE email = ?", (credentials['email'],)).fetchone()
+    user = conn.execute("SELECT * FROM users WHERE email = ?", (credentials.email,)).fetchone()
     conn.close()
-    if not user or not verify_password(credentials['password'], user['hashed_password']):
+    if not user or not verify_password(credentials.password, user['hashed_password']):
         raise HTTPException(status_code=401, detail="Invalid credentials")
     token = create_access_token(user['user_id'])
     return {"access_token": token, "user": dict(user)}
@@ -120,16 +128,12 @@ async def curate_outfits(data: Dict[str, Any] = Body(...), user: UserProfile = D
     return await FashionAIModel.generate_outfits_from_wardrobe(items)
 
 @app.post("/api/ai/weather-search")
-async def weather_search(data: Dict[str, Any], user: UserProfile = Depends(get_current_user)):
-    city = data.get('city', 'Delhi')
-    return FashionAIModel.weather_styling(city)
+async def weather_search(data: WeatherRequest, user: UserProfile = Depends(get_current_user)):
+    return FashionAIModel.weather_styling(data.city)
 
 @app.post("/api/ai/green-audit")
-async def green_audit(data: Dict[str, Any], user: UserProfile = Depends(get_current_user)):
-    brand = data.get('brand')
-    if not brand:
-        raise HTTPException(400, "Brand required")
-    return await FashionAIModel.audit_brand(brand)
+async def green_audit(data: GreenAuditRequest, user: UserProfile = Depends(get_current_user)):
+    return await FashionAIModel.audit_brand(data.brand)
 
 @app.post("/api/ai/daily-drop")
 async def daily_drop(user: UserProfile = Depends(get_current_user)):
@@ -464,7 +468,7 @@ async def get_outfits(user: UserProfile = Depends(get_current_user)):
     return result
 
 @app.post("/api/outfits")
-async def save_outfit(data: Dict[str, Any], user: UserProfile = Depends(get_current_user)):
+async def save_outfit(data: OutfitCreate, user: UserProfile = Depends(get_current_user)):
     outfit_id = str(uuid.uuid4())
     conn = get_db()
     now = datetime.utcnow().isoformat()
@@ -473,9 +477,9 @@ async def save_outfit(data: Dict[str, Any], user: UserProfile = Depends(get_curr
         """INSERT INTO saved_outfits 
            (outfit_id, user_id, name, vibe, items_json, is_daily, created_date) 
            VALUES (?,?,?,?,?,?,?)""",
-        (outfit_id, user.user_id, data.get('name', 'My Outfit'), data.get('vibe', 'Casual'),
-         json.dumps(data.get('items', [])), data.get('is_daily', 0), 
-         data.get('created_date', now))
+        (outfit_id, user.user_id, data.name, data.vibe,
+         json.dumps([item.dict() for item in data.items]), data.is_daily, 
+         data.created_date or now)
     )
     conn.commit()
     conn.close()
@@ -637,23 +641,23 @@ async def get_style_dna(user_id: str, user: UserProfile = Depends(get_current_us
     return {"has_dna": False}
 
 @app.post("/api/style/dna")
-async def save_style_dna(data: Dict[str, Any], user: UserProfile = Depends(get_current_user)):
+async def save_style_dna(data: StyleDNACreate, user: UserProfile = Depends(get_current_user)):
     conn = get_db()
     now = datetime.utcnow().isoformat()
-    styles_json = json.dumps(data.get('styles', []))
+    styles_json = json.dumps(data.styles)
     
     # Update Current Active DNA
     conn.execute(
         "INSERT OR REPLACE INTO style_dna (user_id, styles, comfort_level, summary, created_at) VALUES (?,?,?,?,?)",
-        (user.user_id, styles_json, data.get('comfort_level', 50), data.get('summary', ''), now)
+        (user.user_id, styles_json, data.comfort_level, data.summary, now)
     )
     
     # Add to Evolution History
-    primary_style = data.get('styles', ['Undefined'])[0] if data.get('styles') else 'Evolution'
+    primary_style = data.styles[0] if data.styles else 'Evolution'
     
     conn.execute(
         "INSERT INTO style_history (user_id, styles, comfort_level, archetype, summary, created_at) VALUES (?,?,?,?,?,?)",
-        (user.user_id, styles_json, data.get('comfort_level', 50), primary_style, data.get('summary', ''), now)
+        (user.user_id, styles_json, data.comfort_level, primary_style, data.summary, now)
     )
     
     conn.commit()
@@ -851,7 +855,6 @@ async def send_daily_drop_email(
         "outfit_preview": outfit_data,
     }
 
-
 @app.post("/api/notifications/test-email")
 async def test_email_notification(user: UserProfile = Depends(get_current_user)):
     """Send a test email to verify Gmail credentials are working."""
@@ -870,19 +873,18 @@ async def test_email_notification(user: UserProfile = Depends(get_current_user))
     sent = await email_service.send_test(user.email)
     return {"success": sent, "sent_to": user.email}
 
-
 @app.put("/api/notifications/preferences")
 async def update_notification_preferences(
-    data: Dict[str, Any],
+    data: NotificationPreferencesUpdate,
     user: UserProfile = Depends(get_current_user)
 ):
     """Toggle daily drop email on/off for the user."""
     conn = get_db()
-    enabled = 1 if data.get("daily_drop_email", True) else 0
+    enabled = 1 if data.daily_drop_email else 0
     conn.execute(
         "UPDATE users SET email_notifications = ? WHERE user_id = ?",
         (enabled, user.user_id)
     )
     conn.commit()
     conn.close()
-    return {"success": True, "daily_drop_email": bool(enabled)}
+    return {"success": True, "daily_drop_email": data.daily_drop_email}

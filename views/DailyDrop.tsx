@@ -174,7 +174,6 @@ const DailyDrop: React.FC = () => {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-3xl serif text-slate-800">Daily Drop</h1>
-          <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mt-1">AI Outfit · Color Harmony Engine</p>
         </div>
         <button onClick={() => fetchDailyDrop(true)} className="p-3 bg-slate-50 rounded-full hover:bg-slate-100 transition-colors">
           <RefreshCw className="w-5 h-5 text-slate-400" />
@@ -233,7 +232,7 @@ const DailyDrop: React.FC = () => {
       <div className="mb-4">
         <div className="flex items-center gap-2 mb-4">
           <Sparkles className="w-4 h-4 text-pink-400" />
-          <p className="text-[10px] font-black uppercase tracking-[4px] text-slate-400">Today's Drop</p>
+          <p className="text-[10px] font-black uppercase tracking-[4px] text-slate-400">Daily Drop</p>
           <span className="text-[9px] text-slate-300 font-bold ml-auto">{getTodayString()}</span>
         </div>
 

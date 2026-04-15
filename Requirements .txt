@@ -1,0 +1,35 @@
+# WYA – What's Your Aesthetic · Backend Dependencies
+# Install with: pip install -r requirements.txt
+
+# ── Web framework ──────────────────────────────────────────────────
+fastapi>=0.110.0
+uvicorn[standard]>=0.29.0          # ASGI server to run FastAPI
+python-multipart>=0.0.9            # required for UploadFile / Form support
+
+# ── Data validation ────────────────────────────────────────────────
+pydantic[email]>=2.6.0             # BaseModel + EmailStr
+
+# ── Auth & security ────────────────────────────────────────────────
+bcrypt>=4.1.2
+PyJWT>=2.8.0                       # `import jwt`
+python-dotenv>=1.0.1               # `from dotenv import load_dotenv`
+
+# ── HTTP client ────────────────────────────────────────────────────
+requests>=2.31.0
+
+# ── Numerics / ML core ─────────────────────────────────────────────
+numpy>=1.26.0
+
+# ── Computer vision (optional but recommended) ─────────────────────
+opencv-python>=4.9.0               # `import cv2`
+Pillow>=10.3.0                     # `from PIL import Image`
+scikit-learn>=1.4.0                # KMeans colour clustering
+
+# ── Deep learning (optional – lazy-loaded, app runs without them) ──
+torch>=2.2.0                       # PyTorch CPU build; for GPU see https://pytorch.org
+transformers>=4.40.0               # CLIP / FashionCLIP via HuggingFace
+rembg>=2.0.57                      # background removal
+
+# ── Segment Anything Model (optional) ──────────────────────────────
+# Uncomment if you use the SAM-based segmentation pipeline:
+# segment-anything>=1.0

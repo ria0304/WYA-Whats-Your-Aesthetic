@@ -140,31 +140,44 @@ class LocalComputerVision:
     # ---- background removal ----
 
     def remove_background(self, image: np.ndarray) -> np.ndarray:
-        """Remove background from image using rembg."""
+        """
+        Remove background using rembg (returns RGBA numpy array with true transparency).
+        Falls back to GrabCut masking with white background if rembg is unavailable.
+        """
         if not CV2_AVAILABLE:
             return image
-        
+
         if REMBG_AVAILABLE:
             try:
-                # Convert BGR to RGB for rembg
-                rgb_image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
-                # Remove background
-                output = remove(rgb_image)
-                # Convert back to BGR
-                if len(output.shape) == 3:
-                    result = cv2.cvtColor(output, cv2.COLOR_RGB2BGR)
-                else:
-                    result = image
-                return result
+                from PIL import Image as PILImage
+                rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+                pil_in = PILImage.fromarray(rgb)
+                pil_out = remove(pil_in)   # RGBA PIL Image
+                return np.array(pil_out)   # shape (H, W, 4)
             except Exception as exc:
-                logger.warning("rembg failed: %s, using fallback", exc)
-        
-        # Fallback: use grabcut-based masking
+                logger.warning("rembg failed: %s — using GrabCut fallback", exc)
+
+        # GrabCut fallback — white background, no alpha
         mask = self.get_improved_mask(image)
-        # Apply mask to create transparent background (approximated with white)
         result = image.copy()
         result[mask == 0] = [255, 255, 255]
         return result
+
+    def encode_image_to_base64_png(self, image: np.ndarray) -> str:
+        """Encode RGB/BGR/RGBA numpy array to base64 PNG, preserving alpha if present."""
+        try:
+            from PIL import Image as PILImage
+            if image.ndim == 3 and image.shape[2] == 4:
+                pil = PILImage.fromarray(image, "RGBA")
+            else:
+                rgb = cv2.cvtColor(image, cv2.COLOR_BGR2RGB) if CV2_AVAILABLE else image
+                pil = PILImage.fromarray(rgb, "RGB")
+            buf = io.BytesIO()
+            pil.save(buf, format="PNG")
+            return base64.b64encode(buf.getvalue()).decode("utf-8")
+        except Exception as exc:
+            logger.error("PNG encode error: %s", exc)
+            return ""
 
     # ---- FashionCLIP embeddings ----
 

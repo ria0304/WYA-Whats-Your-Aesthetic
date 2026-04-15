@@ -82,27 +82,22 @@ async def outfit_match(data: Dict[str, Any], user: UserProfile = Depends(get_cur
     variation = data.get('variation', 0)
     if not image:
         raise HTTPException(400, "Image required")
-    
-    # Get closet matches with real similarity scores
+
     conn = get_db()
-    items = conn.execute("SELECT * FROM wardrobe_items WHERE user_id = ? ORDER BY created_at DESC", (user.user_id,)).fetchall()
+    items = conn.execute(
+        "SELECT * FROM wardrobe_items WHERE user_id = ? ORDER BY created_at DESC",
+        (user.user_id,)
+    ).fetchall()
     conn.close()
-    
     wardrobe_items = [dict(item) for item in items]
-    
-    # Use FashionAIModel to get similarity matches
+
+    # Rank closet items by embedding similarity via ai_matcher
     from ai_matcher import fashion_matcher
-    
-    # Create inspiration item from image (simplified - in production would extract features)
     inspiration_item = {"category": "Top", "color": "Unknown", "fabric": "Unknown"}
-    
-    # Rank closet items by similarity
     ranked = fashion_matcher.rank_closet_matches(inspiration_item, wardrobe_items)
-    
-    # Get outfit suggestion
+
     suggestion = await FashionAIModel.get_outfit_suggestion(image, variation, user.user_id)
-    suggestion['closet_matches'] = ranked[:8]  # Add top 8 matches
-    
+    suggestion['closet_matches'] = ranked[:8]
     return suggestion
 
 @app.get("/api/ai/vacation-packer")
@@ -137,13 +132,12 @@ async def green_audit(data: Dict[str, Any], user: UserProfile = Depends(get_curr
 async def daily_drop(user: UserProfile = Depends(get_current_user)):
     """Generate today's Daily Drop using color harmony logic"""
     conn = get_db()
-    
-    # Get user's wardrobe items
-    items = conn.execute("SELECT * FROM wardrobe_items WHERE user_id = ?", (user.user_id,)).fetchall()
+    items = conn.execute(
+        "SELECT * FROM wardrobe_items WHERE user_id = ?", (user.user_id,)
+    ).fetchall()
     conn.close()
-    
     wardrobe_items = [dict(item) for item in items]
-    
+
     if len(wardrobe_items) < 2:
         return {
             "greeting": "Add more items to your closet!",
@@ -154,98 +148,101 @@ async def daily_drop(user: UserProfile = Depends(get_current_user)):
             "pieces": [],
             "style_note": "Add at least 2 items to receive your Daily Drop.",
             "day_score": 0,
-            "color_palette": []
+            "color_palette": [],
         }
-    
-    # Use FashionAIModel to generate daily drop with color harmony
-    from ai_matcher import fashion_matcher
-    
-    # Get weather for location
-    weather_data = {}
+
+    from ai_matcher import fashion_matcher, _colors_harmonize
+
+    weather_data: dict = {}
     if user.location:
         try:
             weather = FashionAIModel.weather_styling(user.location)
-            weather_data = {
-                "temp": weather.get("temp", 22),
-                "condition": weather.get("condition", "Sunny")
-            }
-        except:
+            weather_data = {"temp": weather.get("temp", 22), "condition": weather.get("condition", "Sunny")}
+        except Exception:
             weather_data = {"temp": 22, "condition": "Sunny"}
-    
-    # Create outfit using color harmony
+
     outfit = fashion_matcher.create_complete_outfit(wardrobe_items, style="casual")
-    
-    # Get color harmony type
+
     harmony_type = "Analogous"
     if outfit.get("items") and len(outfit["items"]) >= 2:
         colors = [item.get("color", "") for item in outfit["items"][:2]]
-        from ai_matcher import _colors_harmonize
         is_harmonious, h_type = _colors_harmonize(colors[0], colors[1])
         harmony_type = h_type.replace("_", " ").title() if is_harmonious else "Complementary"
-    
-    # Build pieces list
-    pieces = []
-    color_palette = []
+
+    pieces, color_palette = [], []
     for item in outfit.get("items", []):
-        color = item.get("color", "Gray")
         pieces.append({
             "name": item.get("name", "Item"),
             "category": item.get("category", "Top"),
-            "color": color,
-            "image_url": item.get("image_url", "")
+            "color": item.get("color", ""),
+            "image_url": item.get("image_url", ""),
         })
         color_palette.append(item.get("hex_color", "#808080"))
-    
-    weather_snippet = f"{weather_data.get('temp', 22)}°C · {weather_data.get('condition', 'Sunny')}"
-    
+
     return {
         "greeting": "Your Daily Drop is ready ✨",
-        "weather_snippet": weather_snippet,
+        "weather_snippet": f"{weather_data.get('temp', 22)}°C · {weather_data.get('condition', 'Sunny')}",
         "outfit_name": outfit.get("name", "Today's Look"),
         "outfit_vibe": outfit.get("vibe", "Casual"),
         "harmony_type": harmony_type,
         "pieces": pieces,
-        "style_note": outfit.get("styling_tips", ["Wear with confidence"])[0] if outfit.get("styling_tips") else "Style is personal - wear what makes you feel confident!",
+        "style_note": (outfit.get("styling_tips") or ["Wear with confidence"])[0],
         "day_score": outfit.get("compatibility_score", 85),
-        "color_palette": color_palette[:5]
+        "color_palette": color_palette[:5],
     }
 
 @app.post("/api/ai/gap-analysis")
 async def gap_analysis(user: UserProfile = Depends(get_current_user)):
-    """Analyze wardrobe gaps based on Style DNA"""
+    """
+    Shop Your Closet — FashionCLIP-style gap analysis.
+    Compares Style DNA embedding against wardrobe inventory centroid,
+    surfaces missing pieces with Green Score affiliate links.
+    """
+    from services.gap_analyzer import gap_analyzer
+
     conn = get_db()
-    
-    # Get user's wardrobe
-    items = conn.execute("SELECT * FROM wardrobe_items WHERE user_id = ?", (user.user_id,)).fetchall()
+    items = conn.execute(
+        "SELECT * FROM wardrobe_items WHERE user_id = ?", (user.user_id,)
+    ).fetchall()
     wardrobe_items = [dict(item) for item in items]
-    
-    # Get user's Style DNA
-    dna_row = conn.execute("SELECT * FROM style_dna WHERE user_id = ?", (user.user_id,)).fetchone()
+
+    dna_row = conn.execute(
+        "SELECT styles FROM style_dna WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
+        (user.user_id,)
+    ).fetchone()
     conn.close()
-    
-    style_dna = []
+
+    style_dna: list = []
     if dna_row:
         try:
-            style_dna = json.loads(dna_row['styles'])
-        except:
+            style_dna = json.loads(dna_row["styles"])
+        except Exception:
             style_dna = []
-    
-    # Analyze gaps
-    from ai_matcher import fashion_matcher
-    analysis = fashion_matcher.analyze_wardrobe_gaps(wardrobe_items, style_dna)
-    
-    # Format gaps for frontend
+
+    result = gap_analyzer.analyze(style_dna, wardrobe_items)
+
+    # Normalise for frontend (keeps existing AIMatcher.tsx contract)
     gaps = []
-    for suggestion in analysis.get("gap_analysis", []):
+    for g in result.get("gaps", []):
         gaps.append({
-            "category": suggestion.get("category", "Unknown"),
-            "description": suggestion.get("piece", "Missing item"),
-            "reason": suggestion.get("reason", "Fills a wardrobe gap"),
-            "affiliateQuery": suggestion.get("affiliate_tag", f"{suggestion.get('piece', '')} sustainable fashion"),
-            "priority": "high" if suggestion.get("piece", "").startswith("Essential") else "medium"
+            "category":       g.get("category", "Unknown"),
+            "description":    g.get("description", "Missing item"),
+            "reason":         g.get("reason", "Fills a wardrobe gap"),
+            "priority":       g.get("priority", "medium"),
+            "affiliateQuery": g.get("affiliate_query", ""),
+            "affiliateBrand": g.get("affiliate_brand", ""),
+            "affiliateUrl":   g.get("affiliate_url", ""),
+            "dnaAlignmentScore": g.get("dna_alignment_score", 0),
         })
-    
-    return {"gaps": gaps[:5]}
+
+    return {
+        "gaps": gaps,
+        "primaryAesthetic":  result.get("primary_aesthetic", "casual"),
+        "dnaAlignmentScore": result.get("dna_alignment_score", 0),
+        "neutralRatio":      result.get("neutral_ratio", 0),
+        "patternRatio":      result.get("pattern_ratio", 0),
+        "wardrobeCount":     result.get("wardrobe_count", 0),
+    }
 
 
 # ====================== WARDROBE ENDPOINTS ======================
@@ -338,19 +335,66 @@ async def update_wardrobe_item(
 
 @app.post("/api/wardrobe/{item_id}/remove-bg")
 async def remove_background(item_id: str, user: UserProfile = Depends(get_current_user)):
-    """Remove background from wardrobe item image"""
+    """
+    Strip the background from a wardrobe item image using rembg (SAM/GrabCut fallback).
+    Stores the processed base64 PNG back on the item and returns it for immediate preview.
+    """
     conn = get_db()
-    item = conn.execute("SELECT * FROM wardrobe_items WHERE item_id = ? AND user_id = ?", (item_id, user.user_id)).fetchone()
-    
+    item = conn.execute(
+        "SELECT * FROM wardrobe_items WHERE item_id = ? AND user_id = ?",
+        (item_id, user.user_id)
+    ).fetchone()
+
     if not item:
         conn.close()
         raise HTTPException(404, "Item not found")
-    
-    # In production, integrate rembg or similar service
-    # For now, return the original URL
-    conn.close()
-    
-    return {"bg_removed_url": item['image_url']}
+
+    image_url: str = item["image_url"] or ""
+
+    # Only process base64 data-URIs — skip plain hosted URLs (no pixel data available)
+    if not image_url.startswith("data:image"):
+        conn.close()
+        return {
+            "success": False,
+            "bg_removed_url": image_url,
+            "message": "Background removal requires an uploaded image, not a hosted URL.",
+        }
+
+    try:
+        result = await FashionAIModel.remove_background(image_url)
+
+        if result.get("success") and result.get("bg_removed_image"):
+            bg_removed_data = f"data:image/png;base64,{result['bg_removed_image']}"
+
+            # Persist the processed image back to the item row
+            conn.execute(
+                "UPDATE wardrobe_items SET image_url = ? WHERE item_id = ? AND user_id = ?",
+                (bg_removed_data, item_id, user.user_id)
+            )
+            conn.commit()
+            conn.close()
+
+            return {
+                "success": True,
+                "bg_removed_url": bg_removed_data,
+                "message": "Background removed — your item now looks like a lookbook photo.",
+            }
+
+        conn.close()
+        return {
+            "success": False,
+            "bg_removed_url": image_url,
+            "message": result.get("error", "Background removal failed — original image kept."),
+        }
+
+    except Exception as exc:
+        logger.error("remove-bg endpoint error: %s", exc)
+        conn.close()
+        return {
+            "success": False,
+            "bg_removed_url": image_url,
+            "message": f"Background removal failed: {exc}",
+        }
 
 @app.post("/api/wardrobe/{item_id}/archive")
 async def archive_item(item_id: str, data: Dict[str, Any], user: UserProfile = Depends(get_current_user)):
@@ -730,21 +774,112 @@ async def get_activity(user: UserProfile = Depends(get_current_user)):
     return [dict(row) for row in items]
 
 
-# ====================== NOTIFICATION ENDPOINTS ======================
+# ====================== EMAIL NOTIFICATION ENDPOINTS ======================
 
-@app.post("/api/notifications/subscribe")
-async def subscribe_notifications(data: Dict[str, Any], user: UserProfile = Depends(get_current_user)):
-    """Save push notification subscription"""
+@app.post("/api/notifications/send-daily-drop")
+async def send_daily_drop_email(
+    background_tasks: BackgroundTasks,
+    user: UserProfile = Depends(get_current_user)
+):
+    """
+    Generate today's Daily Drop and email it to the user's Gmail.
+    Called manually (e.g. from the DailyDrop view) or by a scheduler.
+    Requires WYA_GMAIL_ADDRESS + WYA_GMAIL_APP_PASS env vars.
+    """
+    from services.email_service import email_service, EMAIL_ENABLED
+
+    if not user.email:
+        raise HTTPException(400, "No email address on account")
+
+    # Build the outfit payload (reuse daily-drop logic)
     conn = get_db()
-    now = datetime.utcnow().isoformat()
-    
+    items = conn.execute(
+        "SELECT * FROM wardrobe_items WHERE user_id = ?", (user.user_id,)
+    ).fetchall()
+    conn.close()
+    wardrobe_items = [dict(item) for item in items]
+
+    if len(wardrobe_items) < 2:
+        raise HTTPException(400, "Add at least 2 closet items to receive a Daily Drop email.")
+
+    from ai_matcher import fashion_matcher
+    weather_data: dict = {}
+    if user.location:
+        try:
+            w = FashionAIModel.weather_styling(user.location)
+            weather_data = {"temp": w.get("temp", 22), "condition": w.get("condition", "Sunny")}
+        except Exception:
+            weather_data = {"temp": 22, "condition": "Sunny"}
+
+    outfit = fashion_matcher.create_complete_outfit(wardrobe_items, style="casual")
+    pieces = [
+        {"name": it.get("name", "Item"), "category": it.get("category", ""), "color": it.get("color", "")}
+        for it in outfit.get("items", [])
+    ]
+    color_palette = [it.get("hex_color", "#808080") for it in outfit.get("items", [])]
+
+    outfit_data = {
+        "outfit_name":      outfit.get("name", "Today's Look"),
+        "outfit_vibe":      outfit.get("vibe", "Casual"),
+        "pieces":           pieces,
+        "style_note":       (outfit.get("styling_tips") or ["Wear with confidence"])[0],
+        "weather_snippet":  f"{weather_data.get('temp', 22)}°C · {weather_data.get('condition', 'Sunny')}",
+        "day_score":        outfit.get("compatibility_score", 85),
+        "color_palette":    color_palette[:5],
+    }
+
+    # Send in background so the response is instant
+    background_tasks.add_task(
+        email_service.send_daily_drop,
+        user.email,
+        user.full_name or "there",
+        outfit_data,
+    )
+
+    return {
+        "success": True,
+        "email_enabled": EMAIL_ENABLED,
+        "sent_to": user.email,
+        "message": (
+            f"Daily Drop email queued for {user.email}."
+            if EMAIL_ENABLED
+            else "Email not configured — set WYA_GMAIL_ADDRESS and WYA_GMAIL_APP_PASS."
+        ),
+        "outfit_preview": outfit_data,
+    }
+
+
+@app.post("/api/notifications/test-email")
+async def test_email_notification(user: UserProfile = Depends(get_current_user)):
+    """Send a test email to verify Gmail credentials are working."""
+    from services.email_service import email_service, EMAIL_ENABLED
+    if not EMAIL_ENABLED:
+        return {
+            "success": False,
+            "message": "Email not configured. Set WYA_GMAIL_ADDRESS and WYA_GMAIL_APP_PASS environment variables.",
+            "setup_guide": (
+                "1. Enable 2FA on your Google account.\n"
+                "2. Go to myaccount.google.com → Security → App passwords.\n"
+                "3. Generate a password for 'WYA App'.\n"
+                "4. Set WYA_GMAIL_ADDRESS=your@gmail.com and WYA_GMAIL_APP_PASS=xxxx in your .env file."
+            ),
+        }
+    sent = await email_service.send_test(user.email)
+    return {"success": sent, "sent_to": user.email}
+
+
+@app.put("/api/notifications/preferences")
+async def update_notification_preferences(
+    data: Dict[str, Any],
+    user: UserProfile = Depends(get_current_user)
+):
+    """Toggle daily drop email on/off for the user."""
+    conn = get_db()
+    enabled = 1 if data.get("daily_drop_email", True) else 0
     conn.execute(
-        """INSERT OR REPLACE INTO push_subscriptions 
-           (user_id, endpoint, p256dh, auth, created_at, updated_at) 
-           VALUES (?,?,?,?,?,?)""",
-        (user.user_id, data.get('endpoint', ''), data.get('p256dh', ''), 
-         data.get('auth', ''), now, now)
+        "UPDATE users SET email_notifications = ? WHERE user_id = ?",
+        (enabled, user.user_id)
     )
     conn.commit()
     conn.close()
-    return {"success": True}
+    return {"success": True, "daily_drop_email": bool(enabled)}

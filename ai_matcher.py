@@ -374,107 +374,203 @@ class AdvancedFashionMatcher:
             tips.append("Keep accessories minimal for a polished finish.")
         return tips or ["Mix of textures adds visual interest."]
 
+    # ------------------------------------------------------------------
+    # DNA archetype → canonical "ideal wardrobe" prototype items
+    # Each prototype is a synthetic item dict whose embedding represents
+    # what a perfect closet for that DNA should contain.
+    # ------------------------------------------------------------------
+    _DNA_PROTOTYPES: Dict[str, List[Dict[str, Any]]] = {
+        'minimalist': [
+            {'name': 'white structured shirt', 'category': 'Shirt', 'color': 'White', 'fabric': 'Cotton'},
+            {'name': 'tailored black trousers', 'category': 'Pants', 'color': 'Black', 'fabric': 'Polyester'},
+            {'name': 'camel coat', 'category': 'Coat', 'color': 'Beige', 'fabric': 'Wool'},
+            {'name': 'white sneakers', 'category': 'Sneakers', 'color': 'White', 'fabric': 'Leather'},
+            {'name': 'minimalist tote bag', 'category': 'Bag', 'color': 'Beige', 'fabric': 'Leather'},
+        ],
+        'bohemian': [
+            {'name': 'linen maxi dress boho flowy', 'category': 'Dress', 'color': 'Cream', 'fabric': 'Linen'},
+            {'name': 'embroidered blouse', 'category': 'Blouse', 'color': 'Terracotta', 'fabric': 'Cotton'},
+            {'name': 'fringe suede jacket', 'category': 'Jacket', 'color': 'Brown', 'fabric': 'Leather'},
+            {'name': 'strappy sandals', 'category': 'Sandals', 'color': 'Brown', 'fabric': 'Leather'},
+            {'name': 'layered necklace jewelry', 'category': 'Necklace', 'color': 'Gold', 'fabric': 'Metal'},
+        ],
+        'streetwear': [
+            {'name': 'oversized graphic tee', 'category': 'T-Shirt', 'color': 'White', 'fabric': 'Cotton'},
+            {'name': 'cargo pants streetwear', 'category': 'Pants', 'color': 'Olive', 'fabric': 'Cotton'},
+            {'name': 'hoodie oversized', 'category': 'Sweater', 'color': 'Gray', 'fabric': 'Fleece'},
+            {'name': 'chunky sneakers', 'category': 'Sneakers', 'color': 'White', 'fabric': 'Leather'},
+            {'name': 'crossbody bag urban', 'category': 'Bag', 'color': 'Black', 'fabric': 'Leather'},
+        ],
+        'classic': [
+            {'name': 'tailored blazer classic', 'category': 'Blazer', 'color': 'Navy', 'fabric': 'Wool'},
+            {'name': 'silk blouse elegant', 'category': 'Blouse', 'color': 'Cream', 'fabric': 'Silk'},
+            {'name': 'straight leg trousers', 'category': 'Pants', 'color': 'Beige', 'fabric': 'Wool'},
+            {'name': 'loafers leather classic', 'category': 'Shoes', 'color': 'Brown', 'fabric': 'Leather'},
+            {'name': 'structured handbag', 'category': 'Bag', 'color': 'Camel', 'fabric': 'Leather'},
+        ],
+        'avant-garde': [
+            {'name': 'asymmetric dress sculptural', 'category': 'Dress', 'color': 'Black', 'fabric': 'Polyester'},
+            {'name': 'statement blazer bold', 'category': 'Blazer', 'color': 'Purple', 'fabric': 'Velvet'},
+            {'name': 'wide leg trousers draped', 'category': 'Pants', 'color': 'Charcoal', 'fabric': 'Silk'},
+            {'name': 'platform boots', 'category': 'Boots', 'color': 'Black', 'fabric': 'Leather'},
+            {'name': 'sculptural jewelry earrings', 'category': 'Earrings', 'color': 'Silver', 'fabric': 'Metal'},
+        ],
+    }
+
+    # Mapping from DNA archetype label → internal key
+    _DNA_KEY_MAP: Dict[str, str] = {
+        'minimalist': 'minimalist', 'clean': 'minimalist', 'quiet luxury': 'classic',
+        'bohemian': 'bohemian', 'boho': 'bohemian', 'cottagecore': 'bohemian',
+        'streetwear': 'streetwear', 'street': 'streetwear', 'grunge': 'streetwear',
+        'classic': 'classic', 'old money': 'classic', 'preppy': 'classic', 'chic': 'classic',
+        'avant-garde': 'avant-garde', 'eclectic': 'avant-garde', 'dark academia': 'avant-garde',
+    }
+
+    def _resolve_dna_key(self, dna_label: str) -> str:
+        dl = dna_label.lower()
+        for keyword, key in self._DNA_KEY_MAP.items():
+            if keyword in dl:
+                return key
+        return 'classic'
+
+    def _embedding_gap_score(self, prototype: Dict[str, Any], wardrobe: List[Dict[str, Any]]) -> float:
+        """
+        Return the MAX cosine similarity between prototype and any item in wardrobe.
+        A high score means the wardrobe already covers this prototype well.
+        A low score means this is a genuine gap.
+        """
+        if not wardrobe:
+            return 0.0
+        p_emb = _text_to_pseudo_embedding(prototype)
+        sims = [cosine_similarity(p_emb, _text_to_pseudo_embedding(w)) for w in wardrobe]
+        return max(sims)
+
     def analyze_wardrobe_gaps(self, wardrobe: List[Dict[str, Any]], style_dna: List[str] = None) -> Dict[str, Any]:
         """
-        Gap analysis: compare Style DNA against actual inventory (Feature 3).
-        Identifies imbalances and suggests missing pieces with affiliate links.
+        Gap analysis: use embedding cosine similarity to compare each Style DNA
+        prototype against the actual wardrobe (Feature 3).
+        Items where max_similarity < GAP_THRESHOLD are genuine gaps.
         """
+        GAP_THRESHOLD = 0.55  # below this → wardrobe doesn't cover this prototype
+
         category_counts: Dict[str, int] = defaultdict(int)
         color_counts: Dict[str, int] = defaultdict(int)
-        style_counts: Dict[str, int] = defaultdict(int)
-        
+
         for item in wardrobe:
             category_counts[item.get('category', 'Unknown')] += 1
             color_counts[item.get('color', 'Unknown')] += 1
-            n = item.get('name', '').lower()
-            if any(k in n for k in ['jeans', 'tee', 'sneaker', 'casual']):
-                style_counts['Casual'] += 1
-            elif any(k in n for k in ['suit', 'blazer', 'formal', 'silk']):
-                style_counts['Formal'] += 1
-            elif any(k in n for k in ['boho', 'maxi', 'flowy', 'fringe']):
-                style_counts['Bohemian'] += 1
-            else:
-                style_counts['Versatile'] += 1
 
-        missing_essentials = [c for c in ['Top', 'Bottom', 'Shoes', 'Jacket'] if category_counts.get(c, 0) == 0]
+        missing_essentials = [
+            c for c in ['Top', 'Bottom', 'Shoes', 'Jacket']
+            if category_counts.get(c, 0) == 0
+            and not any(item.get('category', '') in self.category_groups.get(
+                {'Top': 'tops', 'Bottom': 'bottoms', 'Shoes': 'shoes', 'Jacket': 'outerwear'}[c], []
+            ) for item in wardrobe)
+        ]
+
         dna_suggestions = []
+        seen_categories: set = set()
 
-        # DNA-based gap suggestions
+        # ----------------------------------------------------------------
+        # Embedding-based DNA gap detection
+        # ----------------------------------------------------------------
         if style_dna:
-            for dna_style in style_dna:
-                dl = dna_style.lower()
-                if 'minimalist' in dl or 'clean' in dl:
-                    patterned = sum(1 for it in wardrobe if any(k in it.get('name', '').lower() 
-                                    for k in ['pattern', 'floral', 'stripe', 'print', 'graphic']))
-                    neutral_bots = sum(1 for it in wardrobe if it.get('category') in ('Bottom', 'Trousers', 'Jeans', 'Pants') 
-                                       and it.get('color', '') in self.color_harmony_data.get('neutrals', []))
-                    if patterned > 5 and neutral_bots < 3:
-                        dna_suggestions.append({
-                            'piece': 'Neutral Wide-Leg Trousers',
-                            'reason': f'Your DNA is {dna_style} but you have {patterned} patterned tops — neutral bottoms will balance the look.',
-                            'category': 'Bottom',
-                            'suggested_colors': ['Black', 'Cream', 'Beige'],
-                            'affiliate_tag': 'minimalist-bottoms'
-                        })
-                if 'bohemian' in dl or 'boho' in dl:
-                    if sum(1 for it in wardrobe if any(k in it.get('name', '').lower() 
-                            for k in ['maxi', 'flowy', 'boho', 'linen'])) < 2:
-                        dna_suggestions.append({
-                            'piece': 'Linen Maxi Dress or Skirt',
-                            'reason': f'Your DNA is {dna_style} but your closet lacks flowing silhouettes.',
-                            'category': 'Dress',
-                            'suggested_colors': ['Cream', 'Sage', 'Terracotta'],
-                            'affiliate_tag': 'boho-maxi'
-                        })
-                if 'streetwear' in dl or 'street' in dl:
-                    if sum(1 for it in wardrobe if any(k in it.get('name', '').lower() 
-                            for k in ['oversized', 'cargo', 'hoodie', 'graphic'])) < 2:
-                        dna_suggestions.append({
-                            'piece': 'Oversized Graphic Tee or Cargo Pants',
-                            'reason': f'Your DNA is {dna_style} but lacks core streetwear silhouettes.',
-                            'category': 'Top',
-                            'suggested_colors': ['Black', 'White', 'Gray'],
-                            'affiliate_tag': 'streetwear-essentials'
-                        })
-                if any(k in dl for k in ['old money', 'classic', 'quiet luxury', 'preppy']):
-                    if sum(1 for it in wardrobe if it.get('category') in ('Blazer', 'Coat', 'Jacket', 'Outerwear') 
-                           and it.get('fabric', '') in ('Wool', 'Cashmere', 'Tweed')) < 1:
-                        dna_suggestions.append({
-                            'piece': 'Structured Wool Blazer',
-                            'reason': f'Your DNA is {dna_style} — a structured blazer is the cornerstone piece.',
-                            'category': 'Jacket',
-                            'suggested_colors': ['Navy', 'Camel', 'Charcoal'],
-                            'affiliate_tag': 'classic-outerwear'
-                        })
+            for dna_label in style_dna:
+                dna_key = self._resolve_dna_key(dna_label)
+                prototypes = self._DNA_PROTOTYPES.get(dna_key, [])
 
-        # Essential missing items
+                for proto in prototypes:
+                    coverage = self._embedding_gap_score(proto, wardrobe)
+                    if coverage >= GAP_THRESHOLD:
+                        continue  # wardrobe already covers this archetype piece
+
+                    cat = proto['category']
+                    cat_group = next(
+                        (g for g, cats in self.category_groups.items() if cat in cats), cat
+                    )
+                    # Avoid duplicate category suggestions
+                    if cat_group in seen_categories:
+                        continue
+                    seen_categories.add(cat_group)
+
+                    # Find the closest existing item so we can name it in the reason
+                    closest_score = round(coverage * 100, 1)
+                    complement_colors = (
+                        self.color_harmony_data
+                        .get('complementary', {})
+                        .get(proto['color'], [proto['color']])
+                    )
+
+                    dna_suggestions.append({
+                        'piece': proto['name'].title(),
+                        'reason': (
+                            f"Your DNA is {dna_label} but your closest {cat.lower()} scores only "
+                            f"{closest_score}% similarity to what a {dna_key} wardrobe needs here."
+                        ),
+                        'category': cat,
+                        'suggested_colors': [proto['color']] + complement_colors[:2],
+                        'affiliate_tag': f"{dna_key}-{cat.lower().replace(' ', '-')}",
+                        'similarity_gap': round(1.0 - coverage, 3),
+                    })
+
+        # ----------------------------------------------------------------
+        # Essential missing categories (pure inventory check)
+        # ----------------------------------------------------------------
         for missing in missing_essentials:
-            dna_suggestions.append({
-                'piece': f'Essential {missing}',
-                'reason': f'You have no {missing.lower()} — a versatile one unlocks many outfit combinations.',
-                'category': missing,
-                'suggested_colors': ['Black', 'White', 'Navy'],
-                'affiliate_tag': f'essential-{missing.lower()}'
-            })
+            if missing not in seen_categories:
+                dna_suggestions.append({
+                    'piece': f'Essential {missing}',
+                    'reason': f'You have no {missing.lower()} — a versatile one unlocks many outfit combinations.',
+                    'category': missing,
+                    'suggested_colors': ['Black', 'White', 'Navy'],
+                    'affiliate_tag': f'essential-{missing.lower()}',
+                    'similarity_gap': 1.0,
+                })
 
-        # Color variety suggestion
+        # ----------------------------------------------------------------
+        # Color imbalance (embedding-aware)
+        # ----------------------------------------------------------------
         if color_counts:
             total = sum(color_counts.values())
             dom_c, dom_n = max(color_counts.items(), key=lambda x: x[1])
-            if total > 5 and dom_n / total > 0.6:
+            if total > 5 and dom_n / total > 0.55:
                 complements = self.color_harmony_data.get('complementary', {}).get(dom_c, [])
                 if complements:
+                    # Find top category to suggest the complement in
+                    top_cat_group = max(
+                        ['tops', 'bottoms', 'outerwear'],
+                        key=lambda g: sum(
+                            1 for it in wardrobe if it.get('category', '') in self.category_groups.get(g, [])
+                        )
+                    )
+                    suggest_cat = self.category_groups[top_cat_group][0]
                     dna_suggestions.append({
-                        'piece': f'{complements[0]} Statement Piece',
-                        'reason': f'{dom_n}/{total} items are {dom_c} — adding {complements[0]} unlocks new combinations.',
-                        'category': 'Top',
+                        'piece': f'{complements[0]} {suggest_cat}',
+                        'reason': (
+                            f"{dom_n}/{total} items ({round(dom_n/total*100)}%) are {dom_c} — "
+                            f"a {complements[0]} piece unlocks {len(complements)} new color combinations."
+                        ),
+                        'category': suggest_cat,
                         'suggested_colors': complements[:3],
-                        'affiliate_tag': f'color-variety-{dom_c.lower()}'
+                        'affiliate_tag': f'color-balance-{dom_c.lower()}',
+                        'similarity_gap': round(dom_n / total - 0.5, 3),
                     })
 
-        dom_style = max(style_counts, key=style_counts.get) if style_counts else 'Versatile'
+        # ----------------------------------------------------------------
+        # Sort by gap severity (largest gap first)
+        # ----------------------------------------------------------------
+        dna_suggestions.sort(key=lambda x: x.get('similarity_gap', 0), reverse=True)
+
+        # Dominant style from category distribution
+        style_scores = {
+            'Casual': sum(category_counts.get(c, 0) for c in ['T-Shirt', 'Jeans', 'Shorts', 'Sneakers']),
+            'Formal': sum(category_counts.get(c, 0) for c in ['Blazer', 'Suit', 'Dress Pants']),
+            'Bohemian': sum(category_counts.get(c, 0) for c in ['Dress', 'Skirt', 'Sandals']),
+            'Streetwear': sum(category_counts.get(c, 0) for c in ['Hoodie', 'Cargo', 'Sneakers']),
+        }
+        dom_style = max(style_scores, key=style_scores.get) if any(style_scores.values()) else 'Versatile'
         health_score = min(100, len(wardrobe) * 4 + len(color_counts) * 4 + (20 if not missing_essentials else 0))
-        
+
         return {
             'total_items': len(wardrobe),
             'category_distribution': dict(category_counts),

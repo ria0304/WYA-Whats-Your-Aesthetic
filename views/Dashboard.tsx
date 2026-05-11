@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Box, Sparkles, Sun, Camera, Plane, Leaf, History,
-  User, Palette, Shirt, Layout, Archive, Zap, Bell
+  User, Palette, Shirt, Layout, Archive, Zap
 } from 'lucide-react';
 import { User as UserType } from '../types';
 import { api } from '../services/api';
@@ -93,25 +93,6 @@ const Dashboard: React.FC<DashboardProps> = ({ user, styleDNA }) => {
           <MenuButton icon={<Shirt className="w-7 h-7" />} label="AI Matcher" bgColor="bg-pink-50" iconColor="bg-pink-100" onClick={() => navigate('/ai-matcher')} />
           <MenuButton icon={<Palette className="w-7 h-7" />} label="Scan Look" bgColor="bg-emerald-50" iconColor="bg-emerald-100" onClick={() => navigate('/scan-look')} />
           <MenuButton icon={<Sun className="w-7 h-7" />} label="Weather" bgColor="bg-blue-50" iconColor="bg-blue-100" onClick={() => navigate('/weather')} />
-
-          {/* Daily Drop – full width hero */}
-          <div className="col-span-2">
-            <button
-              onClick={() => navigate('/daily-drop')}
-              className="w-full bg-gradient-to-br from-violet-50 to-pink-50 p-6 rounded-[32px] flex items-center gap-6 hover:from-violet-100 hover:to-pink-100 transition-all text-left border border-white shadow-sm group"
-            >
-              <div className="w-14 h-14 bg-white rounded-full flex items-center justify-center text-violet-500 shadow-sm group-hover:scale-110 transition-transform">
-                <Bell className="w-7 h-7" />
-              </div>
-              <div>
-                <h3 className="text-violet-600 font-bold uppercase tracking-widest text-xs mb-1">Daily Drop</h3>
-                <p className="text-violet-300 text-[10px] font-bold uppercase tracking-wider">Your AI outfit · every morning</p>
-              </div>
-              <div className="ml-auto">
-                <span className="text-[8px] font-black bg-violet-500 text-white px-3 py-1.5 rounded-full uppercase tracking-widest">New</span>
-              </div>
-            </button>
-          </div>
 
           {/* Travel – full width */}
           <div className="col-span-2">

@@ -15,7 +15,7 @@ from auth_utils import get_current_user, hash_password, verify_password, create_
 from ai_model import FashionAIModel
 from schemas import (
     UserRegister, UserLogin, OutfitCreate, WardrobeItemCreate, 
-    WardrobeItemUpdate, StyleDNACreate, NotificationPreferencesUpdate,
+    WardrobeItemUpdate, StyleDNACreate,
     GreenAuditRequest, WeatherRequest, TripRequest
 )
 
@@ -134,69 +134,6 @@ async def weather_search(data: WeatherRequest, user: UserProfile = Depends(get_c
 @app.post("/api/ai/green-audit")
 async def green_audit(data: GreenAuditRequest, user: UserProfile = Depends(get_current_user)):
     return await FashionAIModel.audit_brand(data.brand)
-
-@app.post("/api/ai/daily-drop")
-async def daily_drop(user: UserProfile = Depends(get_current_user)):
-    """Generate today's Daily Drop using color harmony logic"""
-    conn = get_db()
-    items = conn.execute(
-        "SELECT * FROM wardrobe_items WHERE user_id = ?", (user.user_id,)
-    ).fetchall()
-    conn.close()
-    wardrobe_items = [dict(item) for item in items]
-
-    if len(wardrobe_items) < 2:
-        return {
-            "greeting": "Add more items to your closet!",
-            "weather_snippet": "",
-            "outfit_name": "Build Your Wardrobe",
-            "outfit_vibe": "Start adding pieces",
-            "harmony_type": "N/A",
-            "pieces": [],
-            "style_note": "Add at least 2 items to receive your Daily Drop.",
-            "day_score": 0,
-            "color_palette": [],
-        }
-
-    from ai_matcher import fashion_matcher, _colors_harmonize
-
-    weather_data: dict = {}
-    if user.location:
-        try:
-            weather = FashionAIModel.weather_styling(user.location)
-            weather_data = {"temp": weather.get("temp", 22), "condition": weather.get("condition", "Sunny")}
-        except Exception:
-            weather_data = {"temp": 22, "condition": "Sunny"}
-
-    outfit = fashion_matcher.create_complete_outfit(wardrobe_items, style="casual")
-
-    harmony_type = "Analogous"
-    if outfit.get("items") and len(outfit["items"]) >= 2:
-        colors = [item.get("color", "") for item in outfit["items"][:2]]
-        is_harmonious, h_type = _colors_harmonize(colors[0], colors[1])
-        harmony_type = h_type.replace("_", " ").title() if is_harmonious else "Complementary"
-
-    pieces, color_palette = [], []
-    for item in outfit.get("items", []):
-        pieces.append({
-            "name": item.get("name", "Item"),
-            "category": item.get("category", "Top"),
-            "color": item.get("color", ""),
-            "image_url": item.get("image_url", ""),
-        })
-        color_palette.append(item.get("hex_color", "#808080"))
-
-    return {
-        "greeting": "Your Daily Drop is ready ✨",
-        "weather_snippet": f"{weather_data.get('temp', 22)}°C · {weather_data.get('condition', 'Sunny')}",
-        "outfit_name": outfit.get("name", "Today's Look"),
-        "outfit_vibe": outfit.get("vibe", "Casual"),
-        "harmony_type": harmony_type,
-        "pieces": pieces,
-        "style_note": (outfit.get("styling_tips") or ["Wear with confidence"])[0],
-        "day_score": outfit.get("compatibility_score", 85),
-        "color_palette": color_palette[:5],
-    }
 
 @app.post("/api/ai/gap-analysis")
 async def gap_analysis(user: UserProfile = Depends(get_current_user)):
@@ -459,7 +396,6 @@ async def get_outfits(user: UserProfile = Depends(get_current_user)):
             "name": outfit['name'],
             "vibe": outfit['vibe'],
             "items": items,
-            "is_daily": outfit['is_daily'],
             "created_date": outfit['created_date'],
             "worn_count": outfit['worn_count'],
             "last_worn": outfit['last_worn']
@@ -475,10 +411,10 @@ async def save_outfit(data: OutfitCreate, user: UserProfile = Depends(get_curren
     
     conn.execute(
         """INSERT INTO saved_outfits 
-           (outfit_id, user_id, name, vibe, items_json, is_daily, created_date) 
-           VALUES (?,?,?,?,?,?,?)""",
+           (outfit_id, user_id, name, vibe, items_json, created_date) 
+           VALUES (?,?,?,?,?,?)""",
         (outfit_id, user.user_id, data.name, data.vibe,
-         json.dumps([item.dict() for item in data.items]), data.is_daily, 
+         json.dumps([item.dict() for item in data.items]),
          data.created_date or now)
     )
     conn.commit()
@@ -781,79 +717,7 @@ async def get_activity(user: UserProfile = Depends(get_current_user)):
     return [dict(row) for row in items]
 
 
-# ====================== EMAIL NOTIFICATION ENDPOINTS ======================
-
-@app.post("/api/notifications/send-daily-drop")
-async def send_daily_drop_email(
-    background_tasks: BackgroundTasks,
-    user: UserProfile = Depends(get_current_user)
-):
-    """
-    Generate today's Daily Drop and email it to the user's Gmail.
-    Called manually (e.g. from the DailyDrop view) or by a scheduler.
-    Requires WYA_GMAIL_ADDRESS + WYA_GMAIL_APP_PASS env vars.
-    """
-    from services.email_service import email_service, EMAIL_ENABLED
-
-    if not user.email:
-        raise HTTPException(400, "No email address on account")
-
-    # Build the outfit payload (reuse daily-drop logic)
-    conn = get_db()
-    items = conn.execute(
-        "SELECT * FROM wardrobe_items WHERE user_id = ?", (user.user_id,)
-    ).fetchall()
-    conn.close()
-    wardrobe_items = [dict(item) for item in items]
-
-    if len(wardrobe_items) < 2:
-        raise HTTPException(400, "Add at least 2 closet items to receive a Daily Drop email.")
-
-    from ai_matcher import fashion_matcher
-    weather_data: dict = {}
-    if user.location:
-        try:
-            w = FashionAIModel.weather_styling(user.location)
-            weather_data = {"temp": w.get("temp", 22), "condition": w.get("condition", "Sunny")}
-        except Exception:
-            weather_data = {"temp": 22, "condition": "Sunny"}
-
-    outfit = fashion_matcher.create_complete_outfit(wardrobe_items, style="casual")
-    pieces = [
-        {"name": it.get("name", "Item"), "category": it.get("category", ""), "color": it.get("color", "")}
-        for it in outfit.get("items", [])
-    ]
-    color_palette = [it.get("hex_color", "#808080") for it in outfit.get("items", [])]
-
-    outfit_data = {
-        "outfit_name":      outfit.get("name", "Today's Look"),
-        "outfit_vibe":      outfit.get("vibe", "Casual"),
-        "pieces":           pieces,
-        "style_note":       (outfit.get("styling_tips") or ["Wear with confidence"])[0],
-        "weather_snippet":  f"{weather_data.get('temp', 22)}°C · {weather_data.get('condition', 'Sunny')}",
-        "day_score":        outfit.get("compatibility_score", 85),
-        "color_palette":    color_palette[:5],
-    }
-
-    # Send in background so the response is instant
-    background_tasks.add_task(
-        email_service.send_daily_drop,
-        user.email,
-        user.full_name or "there",
-        outfit_data,
-    )
-
-    return {
-        "success": True,
-        "email_enabled": EMAIL_ENABLED,
-        "sent_to": user.email,
-        "message": (
-            f"Daily Drop email queued for {user.email}."
-            if EMAIL_ENABLED
-            else "Email not configured — set WYA_GMAIL_ADDRESS and WYA_GMAIL_APP_PASS."
-        ),
-        "outfit_preview": outfit_data,
-    }
+# ====================== NOTIFICATION ENDPOINTS ======================
 
 @app.post("/api/notifications/test-email")
 async def test_email_notification(user: UserProfile = Depends(get_current_user)):
@@ -872,19 +736,3 @@ async def test_email_notification(user: UserProfile = Depends(get_current_user))
         }
     sent = await email_service.send_test(user.email)
     return {"success": sent, "sent_to": user.email}
-
-@app.put("/api/notifications/preferences")
-async def update_notification_preferences(
-    data: NotificationPreferencesUpdate,
-    user: UserProfile = Depends(get_current_user)
-):
-    """Toggle daily drop email on/off for the user."""
-    conn = get_db()
-    enabled = 1 if data.daily_drop_email else 0
-    conn.execute(
-        "UPDATE users SET email_notifications = ? WHERE user_id = ?",
-        (enabled, user.user_id)
-    )
-    conn.commit()
-    conn.close()
-    return {"success": True, "daily_drop_email": data.daily_drop_email}

@@ -191,8 +191,6 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ items })
     }),
-    /** Daily Drop – uses color_harmony logic server-side */
-    getDailyDrop: async () => apiFetch('/api/ai/daily-drop', { method: 'POST' }),
   },
 
   profile: {

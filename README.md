@@ -40,9 +40,6 @@ User authentication and profile management
 
 AI-driven outfit and style recommendations
 
-Cloud-based database integration
-
-Deployment using Docker and cloud platforms
 
 Run Locally
 Prerequisites
@@ -52,8 +49,13 @@ Node.js
 Python 3.10+
 
 Frontend Setup
+
 npm install
+
 npm run dev
+
 Backend Setup
+
 pip install -r requirements.txt
+
 python -m uvicorn main:app --reload

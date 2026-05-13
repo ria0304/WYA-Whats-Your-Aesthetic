@@ -358,8 +358,15 @@ const Closet: React.FC = () => {
                 ) : (
                   <Box className="w-12 h-12 text-slate-100" />
                 )}
+                {/* Loading overlay while bg removal is processing */}
+                {removingBg === item.id && (
+                  <div className="absolute inset-0 bg-white/80 backdrop-blur-sm flex flex-col items-center justify-center z-20 rounded-2xl">
+                    <Loader2 className="w-8 h-8 animate-spin text-purple-400 mb-2" />
+                    <span className="text-[8px] font-black uppercase tracking-[3px] text-purple-400">Removing BG...</span>
+                  </div>
+                )}
                 {/* BG-removed badge */}
-                {item.bgRemovedUrl && (
+                {item.bgRemovedUrl && removingBg !== item.id && (
                   <span className="absolute top-2 left-2 bg-emerald-500 text-white text-[7px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full">
                     Clean BG
                   </span>

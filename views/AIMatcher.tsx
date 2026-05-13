@@ -26,6 +26,9 @@ const AIMatcher: React.FC = () => {
   const [activeView, setActiveView] = useState<ActiveView>('idle');
   const [variationCount, setVariationCount] = useState(0);
   const [refreshingField, setRefreshingField] = useState<string | null>(null);
+  const [showBudgetModal, setShowBudgetModal] = useState(false);
+  const [budget, setBudget] = useState<string>('');
+  const [budgetRange, setBudgetRange] = useState<string>('');
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -119,12 +122,30 @@ const AIMatcher: React.FC = () => {
 
   /** Gap Analysis: compare Style DNA to actual wardrobe inventory */
   const runGapAnalysis = async () => {
+    setShowBudgetModal(false);
     setLoadingGap(true);
     setGapItems([]);
     try {
       const data = await api.wardrobe.gapAnalysis();
-      // Expected shape: { gaps: GapItem[] }
-      setGapItems(data.gaps || []);
+      // Append budget to affiliate URLs so search is budget-aware
+        // Extract numeric budget cap
+      const budgetNum = budgetRange
+        ? parseInt(budgetRange.replace(/[^\d]/g, ''))
+        : budget ? parseInt(budget) : null;
+
+      const gaps = (data.gaps || []).map((g: any) => {
+        const genderPrefix = g.gender || '';
+        const searchQuery = encodeURIComponent(`${genderPrefix} ${g.description}${budgetNum ? ` under ₹${budgetNum}` : ''}`);
+        const shopUrl = budgetNum
+          ? `https://www.google.com/search?q=${searchQuery}&tbm=shop&tbs=mr:1,price:1,ppr_max:${budgetNum}`
+          : `https://www.google.com/search?q=${searchQuery}&tbm=shop`;
+        return {
+          ...g,
+          affiliateUrl: shopUrl,
+          affiliateQuery: `${genderPrefix} ${g.description}${budgetNum ? ` under ₹${budgetNum}` : ''}`,
+        };
+      });
+      setGapItems(gaps);
       setActiveView('gap');
     } catch (e) {
       console.error(e);
@@ -142,6 +163,7 @@ const AIMatcher: React.FC = () => {
   };
 
   return (
+    <>
     <div className="p-6 bg-white min-h-full pb-32">
       {/* Upload Panel */}
       <div className="bg-[#fff0f5] rounded-[40px] p-8 mb-8 border border-pink-100 shadow-sm relative overflow-hidden">
@@ -189,7 +211,7 @@ const AIMatcher: React.FC = () => {
             Wardrobe
           </button>
           <button
-            onClick={runGapAnalysis}
+            onClick={() => { setBudget(''); setBudgetRange(''); setShowBudgetModal(true); }}
             disabled={loadingGap}
             className="py-5 rounded-3xl bg-slate-900 text-white flex items-center justify-center gap-2 text-[9px] font-black uppercase tracking-widest shadow-sm disabled:opacity-50 active:scale-95 transition-all"
           >
@@ -351,7 +373,7 @@ const AIMatcher: React.FC = () => {
                       className="w-full mt-4 py-3 bg-white rounded-2xl text-[10px] font-black uppercase tracking-widest text-slate-700 flex items-center justify-center gap-2 border border-white/60 shadow-sm hover:shadow-md transition-all active:scale-95"
                     >
                       <ShoppingBag className="w-4 h-4" />
-                      Shop {gap.affiliateBrand || 'Sustainable Options'}
+                      Shop
                     </a>
                   </div>
                 ))}
@@ -361,6 +383,60 @@ const AIMatcher: React.FC = () => {
         )}
       </div>
     </div>
+
+    {/* Budget Modal — shown when Gap button is pressed */}
+    {showBudgetModal && (
+      <div className="fixed inset-0 z-[200] flex items-end justify-center">
+        <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={() => setShowBudgetModal(false)} />
+        <div className="relative w-full max-w-md bg-white rounded-t-[50px] p-8 shadow-2xl animate-slide-up">
+          <h2 className="text-2xl serif text-slate-800 mb-1">What's your budget?</h2>
+          <p className="text-[10px] text-slate-400 uppercase tracking-widest font-bold mb-6">So we can find the right pieces for you</p>
+
+          {/* Quick select ranges */}
+          <div className="grid grid-cols-3 gap-3 mb-6">
+            {['Under ₹500', 'Under ₹1000', 'Under ₹2000', 'Under ₹5000', 'Under ₹10000', 'No limit'].map(r => (
+              <button
+                key={r}
+                onClick={() => setBudgetRange(r === 'No limit' ? '' : r)}
+                className={`py-3 px-2 rounded-2xl text-[10px] font-black uppercase tracking-widest transition-all border-2 ${
+                  (r === 'No limit' && budgetRange === '') || budgetRange === r
+                    ? 'bg-slate-900 text-white border-slate-900'
+                    : 'bg-slate-50 text-slate-500 border-transparent'
+                }`}
+              >
+                {r}
+              </button>
+            ))}
+          </div>
+
+          {/* Or type custom */}
+          <div className="flex items-center gap-3 mb-8">
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest whitespace-nowrap">Or type</span>
+            <div className="relative flex-1">
+              <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-bold text-sm">₹</span>
+              <input
+                type="number"
+                placeholder="Custom amount"
+                className="w-full bg-slate-50 border border-slate-100 rounded-2xl pl-8 pr-4 py-3 text-sm font-bold outline-none focus:ring-2 ring-pink-100"
+                value={budget}
+                onChange={e => { setBudget(e.target.value); setBudgetRange(''); }}
+              />
+            </div>
+          </div>
+
+          <button
+            onClick={runGapAnalysis}
+            className="w-full py-5 gradient-bg text-white rounded-full font-black text-xs uppercase tracking-[3px] shadow-lg active:scale-95 transition-all"
+          >
+            Find My Gaps →
+          </button>
+          <button onClick={() => setShowBudgetModal(false)} className="w-full mt-3 py-3 text-slate-400 text-xs font-bold uppercase tracking-widest">
+            Cancel
+          </button>
+        </div>
+      </div>
+    )}
+    </>
   );
 };
 

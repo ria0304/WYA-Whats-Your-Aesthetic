@@ -165,18 +165,24 @@ async def gap_analysis(user: UserProfile = Depends(get_current_user)):
 
     result = gap_analyzer.analyze(style_dna, wardrobe_items)
 
+    # Determine gender label for search queries
+    gender = (user.gender or "Female").strip().lower()
+    gender_label = "women's" if gender in ("female", "f", "woman", "women") else "men's"
+
     # Normalise for frontend (keeps existing AIMatcher.tsx contract)
     gaps = []
     for g in result.get("gaps", []):
+        description = g.get("description", "Missing item")
         gaps.append({
             "category":       g.get("category", "Unknown"),
-            "description":    g.get("description", "Missing item"),
+            "description":    description,
             "reason":         g.get("reason", "Fills a wardrobe gap"),
             "priority":       g.get("priority", "medium"),
-            "affiliateQuery": g.get("affiliate_query", ""),
+            "affiliateQuery": f"{gender_label} {g.get('affiliate_query', '')}",
             "affiliateBrand": g.get("affiliate_brand", ""),
             "affiliateUrl":   g.get("affiliate_url", ""),
             "dnaAlignmentScore": g.get("dna_alignment_score", 0),
+            "gender":         gender_label,
         })
 
     return {

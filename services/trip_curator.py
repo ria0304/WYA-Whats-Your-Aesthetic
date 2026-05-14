@@ -19,6 +19,139 @@ from .weather_service import get_weather_data
 logger = logging.getLogger(__name__)
 
 
+
+# ------------------------------------------------------------------
+# Curated fallback data for when Geoapify returns empty results
+# ------------------------------------------------------------------
+
+CITY_FALLBACKS: dict = {
+    "default": {
+        "markets": [
+            {"name": "Central City Market", "type": "Market", "specialty": "Local produce, street food, and traditional crafts from the region."},
+            {"name": "Old Town Bazaar", "type": "Bazaar", "specialty": "Handmade goods, spices, textiles, and local souvenirs."},
+            {"name": "Weekend Flea Market", "type": "Flea Market", "specialty": "Vintage finds, antiques, and one-of-a-kind collectibles."},
+            {"name": "Local Shopping District", "type": "Shopping Street", "specialty": "Mix of local boutiques, street vendors, and café culture."},
+        ],
+        "boutiques": [
+            {"name": "The Local Collective", "type": "Clothing Boutique", "description": "Curated selection of locally-made fashion and contemporary designs by emerging regional designers."},
+            {"name": "Artisan Corner", "type": "Gift Shop", "description": "Handcrafted jewelry, ceramics, and textile art made by local artisans — perfect for unique souvenirs."},
+            {"name": "Heritage Threads", "type": "Vintage Boutique", "description": "Carefully sourced vintage clothing and accessories reflecting the city's fashion history."},
+        ],
+    },
+    "delhi": {
+        "markets": [
+            {"name": "Chandni Chowk", "type": "Historic Bazaar", "specialty": "One of Asia's oldest markets — spices, textiles, silver jewellery, and street food paradise."},
+            {"name": "Dilli Haat", "type": "Craft Market", "specialty": "Government-run crafts market with artisans from every Indian state. Best for authentic handlooms and pottery."},
+            {"name": "Sarojini Nagar Market", "type": "Fashion Market", "specialty": "Famous export-surplus clothing market — great for affordable, on-trend fashion and accessories."},
+            {"name": "Lajpat Nagar Central Market", "type": "Shopping Hub", "specialty": "Vibrant shopping hub with ethnic wear, home décor, and street food. Very popular with locals."},
+        ],
+        "boutiques": [
+            {"name": "Good Earth, Khan Market", "type": "Lifestyle Boutique", "description": "Iconic Indian luxury brand with exquisite handcrafted home décor, textiles, and fashion blending traditional craft with modern design."},
+            {"name": "Anokhi, Khan Market", "type": "Clothing Boutique", "description": "Celebrated for hand block-printed cotton garments. Ethical fashion with deep roots in Rajasthani craft traditions."},
+            {"name": "The Shop, Connaught Place", "type": "Craft Boutique", "description": "Hidden gem stocking handloom fabrics, artisanal jewellery, and sustainable fashion from across India."},
+        ],
+    },
+    "mumbai": {
+        "markets": [
+            {"name": "Colaba Causeway Market", "type": "Street Market", "specialty": "Iconic seaside market with antiques, jewellery, street fashion, and Bohemian finds near the Gateway of India."},
+            {"name": "Chor Bazaar", "type": "Flea Market", "specialty": "Mumbai's famous 'Thieves Market' — antique furniture, vintage watches, collectibles, and curios."},
+            {"name": "Crawford Market", "type": "Heritage Market", "specialty": "Beautiful colonial-era market for fresh produce, imported goods, and exotic pets."},
+            {"name": "Fashion Street", "type": "Fashion Market", "specialty": "Budget fashion hub near Churchgate — branded surplus, western wear, and accessories at low prices."},
+        ],
+        "boutiques": [
+            {"name": "Bombay Electric, Kala Ghoda", "type": "Concept Store", "description": "Curated multi-brand store with Indian designer labels, art books, and lifestyle products in a beautiful heritage space."},
+            {"name": "Nicobar", "type": "Lifestyle Boutique", "description": "Minimalist Indian design brand with travel-ready clothing, home goods, and accessories. Very popular with design-conscious locals."},
+            {"name": "Kulture Shop", "type": "Art Boutique", "description": "Independent store selling prints, totes, and accessories by Indian illustrators and graphic artists."},
+        ],
+    },
+    "paris": {
+        "markets": [
+            {"name": "Marché des Enfants Rouges", "type": "Covered Market", "specialty": "Paris's oldest covered market (1615). Organic produce, international street food, and a wonderful local atmosphere."},
+            {"name": "Marché aux Puces de Saint-Ouen", "type": "Flea Market", "specialty": "World's largest antique market — vintage furniture, jewellery, art, and fashion from every era."},
+            {"name": "Marché d'Aligre", "type": "Food & Flea Market", "specialty": "Beloved local market with fresh produce in the morning and a bric-a-brac flea market throughout the day."},
+            {"name": "Le Marais District", "type": "Shopping District", "specialty": "Trendy neighbourhood with independent boutiques, vintage stores, galleries, and designer showrooms."},
+        ],
+        "boutiques": [
+            {"name": "Merci Concept Store", "type": "Concept Store", "description": "Three floors of curated fashion, design objects, and books. A portion of profits go to charitable causes in Madagascar."},
+            {"name": "Isabel Marant, Le Marais", "type": "Designer Boutique", "description": "The quintessential Parisian designer — effortlessly chic ready-to-wear and accessories with a bohemian edge."},
+            {"name": "Thanx God I'm a VIP", "type": "Vintage Boutique", "description": "Legendary Le Marais vintage store with carefully curated pieces from the 60s through 90s. A celebrity favourite."},
+        ],
+    },
+    "london": {
+        "markets": [
+            {"name": "Borough Market", "type": "Food Market", "specialty": "London's most celebrated food market — artisan produce, street food from around the world, and independent traders."},
+            {"name": "Portobello Road Market", "type": "Antique Market", "specialty": "Famous for antiques and vintage on Saturdays. Also has fresh produce, street food, and new goods daily."},
+            {"name": "Brick Lane Market", "type": "Street Market", "specialty": "East London icon with vintage fashion, street art, multicultural food, and independent designers every Sunday."},
+            {"name": "Spitalfields Market", "type": "Design Market", "specialty": "Covered market in a Victorian building with independent fashion designers, artisans, and vintage traders."},
+        ],
+        "boutiques": [
+            {"name": "Dover Street Market", "type": "Concept Store", "description": "Comme des Garçons' legendary multi-brand concept store — avant-garde fashion, art installations, and exclusive collaborations."},
+            {"name": "Blackout II, Covent Garden", "type": "Vintage Boutique", "description": "Two floors of meticulously sourced vintage clothing spanning the 1920s to 1980s. One of London's best-kept secrets."},
+            {"name": "Hostem, Shoreditch", "type": "Designer Boutique", "description": "Beautifully designed boutique stocking emerging and established menswear and womenswear designers in a gallery-like space."},
+        ],
+    },
+    "new york": {
+        "markets": [
+            {"name": "Chelsea Market", "type": "Food & Design Market", "specialty": "Iconic indoor market in a converted factory with gourmet food vendors, unique shops, and TV studios."},
+            {"name": "Brooklyn Flea", "type": "Flea Market", "specialty": "New York's premier flea market — vintage furniture, clothing, jewellery, and artisan food in Brooklyn."},
+            {"name": "Smorgasburg", "type": "Food Market", "specialty": "The largest weekly open-air food market in America — 100 local vendors, waterfront views, and incredible variety."},
+            {"name": "Grand Bazaar NYC", "type": "Artisan Market", "specialty": "Weekend market on the Upper West Side with local artisans, vintage dealers, and community vendors."},
+        ],
+        "boutiques": [
+            {"name": "Opening Ceremony", "type": "Concept Store", "description": "Iconic NYC concept store championing global emerging designers, collaborations, and boundary-pushing fashion."},
+            {"name": "Beacon's Closet, Williamsburg", "type": "Vintage Boutique", "description": "Brooklyn institution for buying, selling, and trading vintage and secondhand clothing. Enormous and extremely well-curated."},
+            {"name": "In God We Trust", "type": "Jewelry Boutique", "description": "NYC-based designer with handcrafted jewelry, ethical fashion, and unique accessories made in their Brooklyn studio."},
+        ],
+    },
+    "tokyo": {
+        "markets": [
+            {"name": "Tsukiji Outer Market", "type": "Food Market", "specialty": "World-famous seafood and street food market — fresh sushi, tamagoyaki, and Japanese culinary specialties."},
+            {"name": "Nakameguro Vintage Strip", "type": "Vintage District", "specialty": "Canal-side strip of independent vintage stores, design studios, and concept cafés loved by Tokyo's fashion crowd."},
+            {"name": "Shimokitazawa Market", "type": "Vintage & Craft Market", "specialty": "Tokyo's bohemian neighbourhood with dense vintage shops, vinyl record stores, and indie fashion boutiques."},
+            {"name": "Harajuku Takeshita Street", "type": "Youth Fashion Street", "specialty": "The epicentre of Japanese youth fashion — kawaii culture, colourful streetwear, and unique accessories."},
+        ],
+        "boutiques": [
+            {"name": "Kapital, Harajuku", "type": "Designer Boutique", "description": "Iconic Japanese brand blending Americana, Japanese workwear, and artisan craft. Unique indigo dye and patchwork pieces."},
+            {"name": "Comme des Garçons, Aoyama", "type": "Designer Boutique", "description": "The flagship store for Rei Kawakubo's avant-garde label — architectural fashion in a landmark building."},
+            {"name": "Pass the Baton", "type": "Curated Vintage", "description": "Unique secondhand concept where sellers include personal stories with each item — a boutique with memory built in."},
+        ],
+    },
+}
+
+
+def _get_fallback_markets(city_name: str) -> list:
+    key = city_name.lower().strip()
+    data = CITY_FALLBACKS.get(key, CITY_FALLBACKS["default"])
+    return [
+        {
+            "name": m["name"],
+            "type": m["type"],
+            "specialty": m["specialty"],
+            "description": m["specialty"],
+            "address": f"{city_name} City Centre",
+            "distance": 0,
+            "rating": "N/A",
+        }
+        for m in data["markets"]
+    ]
+
+
+def _get_fallback_boutiques(city_name: str) -> list:
+    key = city_name.lower().strip()
+    data = CITY_FALLBACKS.get(key, CITY_FALLBACKS["default"])
+    return [
+        {
+            "name": b["name"],
+            "type": b["type"],
+            "description": b["description"],
+            "address": f"{city_name} City Centre",
+            "distance": 0,
+            "is_hidden_gem": True,
+            "limited_edition_items": [],
+        }
+        for b in data["boutiques"]
+    ]
+
 # ------------------------------------------------------------------
 # Public entry point
 # ------------------------------------------------------------------
@@ -44,6 +177,12 @@ def curate_trip(city: str, duration: int, vibe: str) -> Dict[str, Any]:
         major_markets  = _process_markets(markets_raw)
         bakeries       = _process_bakeries(bakeries_raw)
         boutiques      = _process_boutiques(boutiques_raw, region)
+
+        # Fall back to curated data if Geoapify returned nothing
+        if not major_markets:
+            major_markets = _get_fallback_markets(city_name)
+        if not boutiques:
+            boutiques = _get_fallback_boutiques(city_name)
 
         # Weather
         weather = get_weather_data(lat, lon, city_name)

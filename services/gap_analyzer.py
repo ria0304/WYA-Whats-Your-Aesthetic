@@ -268,6 +268,29 @@ def _cosine_similarity(v1: np.ndarray, v2: np.ndarray) -> float:
 
 
 # ---------------------------------------------------------------------------
+# Inspired-category broad groupings — used to suppress same-category suggestions
+# ---------------------------------------------------------------------------
+def _broad_category(category: str) -> set:
+    """Return a set of category strings that belong to the same broad bucket."""
+    cat = category.lower()
+    if any(k in cat for k in ("skirt", "trouser", "jeans", "pant", "short", "bottom", "legging")):
+        return {"bottom", "skirt", "trousers", "jeans", "pants", "shorts", "leggings"}
+    if any(k in cat for k in ("top", "shirt", "blouse", "tee", "sweater")):
+        return {"top", "shirt", "blouse", "t-shirt", "sweater"}
+    if any(k in cat for k in ("dress", "jumpsuit", "romper")):
+        return {"dress", "jumpsuit", "romper"}
+    if any(k in cat for k in ("outerwear", "jacket", "coat", "blazer")):
+        return {"outerwear", "jacket", "coat", "blazer"}
+    if any(k in cat for k in ("shoe", "boot", "sandal", "sneaker", "heel", "flat")):
+        return {"shoes", "shoe", "boots", "sandals", "sneakers", "heels", "flats"}
+    if any(k in cat for k in ("bag", "purse", "tote", "clutch", "backpack")):
+        return {"bag", "purse", "tote", "clutch", "backpack"}
+    if any(k in cat for k in ("accessory", "accessories", "necklace", "ring", "earring", "watch", "belt", "hat")):
+        return {"accessory", "accessories", "necklace", "ring", "earrings", "watch", "belt", "hat"}
+    return {cat}
+
+
+# ---------------------------------------------------------------------------
 # Main gap analyzer
 # ---------------------------------------------------------------------------
 
@@ -281,6 +304,7 @@ class GapAnalyzer:
         self,
         style_dna: List[str],
         wardrobe_items: List[Dict[str, Any]],
+        inspired_category: str = "",
     ) -> Dict[str, Any]:
         """
         Full pipeline:
@@ -331,7 +355,14 @@ class GapAnalyzer:
         # --- Gap detection -------------------------------------------------------
         gaps: List[Dict[str, Any]] = []
 
-        # 1. Category holes
+        # Helper: pick a brand cycling through the list
+        def _brand(offset: int = 0) -> Dict[str, str]:
+            return brands[(len(gaps) + offset) % len(brands)]
+
+        def _url(brand: Dict, query: str) -> str:
+            return f"https://www.{brand['affiliate_base']}/search?q={query.replace(' ', '+')}"
+
+        # 1. Category holes — one suggestion per missing required category
         for required_cat in blueprint["required_categories"]:
             count = sum(
                 v for k, v in category_counts.items()
@@ -342,7 +373,7 @@ class GapAnalyzer:
                     (t for t in blueprint["missing_piece_templates"] if t["category"] == required_cat),
                     blueprint["missing_piece_templates"][0],
                 )
-                brand = brands[len(gaps) % len(brands)]
+                brand = _brand()
                 gaps.append({
                     "gap_type": "missing_category",
                     "category": required_cat,
@@ -351,45 +382,124 @@ class GapAnalyzer:
                     "priority": "high",
                     "affiliate_query": f"{template['label']} {brand['search_suffix']}",
                     "affiliate_brand": brand["name"],
-                    "affiliate_url": f"https://www.{brand['affiliate_base']}/search?q={template['label'].replace(' ', '+')}",
+                    "affiliate_url": _url(brand, template["label"]),
                     "dna_alignment_score": round(inventory_alignment * 100, 1),
                 })
 
-        # 2. Neutral ratio imbalance
+        # 2. Missing must-have colors — one card per missing color (not just the first!)
         target_neutral = blueprint["neutral_ratio_target"]
-        if actual_neutral_ratio < target_neutral - 0.15:
-            gap_delta = target_neutral - actual_neutral_ratio
-            needed_must_haves = [
-                c for c in blueprint["must_have_colors"] if color_counts.get(c, 0) == 0
-            ]
-            if needed_must_haves:
-                missing_color = needed_must_haves[0]
+        gap_delta = max(0.0, target_neutral - actual_neutral_ratio)
+        needed_must_haves = [
+            c for c in blueprint["must_have_colors"] if color_counts.get(c, 0) == 0
+        ]
+        # Determine per-color priority: first two are high, rest medium
+        for i, missing_color in enumerate(needed_must_haves):
+            template = next(
+                (t for t in blueprint["missing_piece_templates"] if t["color"] == missing_color),
+                None,
+            )
+            # If no exact template, pick the one whose category we need most
+            if template is None:
+                # Prefer a template whose category we're also missing
+                missing_cats = {
+                    cat for cat in blueprint["required_categories"]
+                    if sum(v for k, v in category_counts.items()
+                           if k.lower() in cat.lower() or cat.lower() in k.lower()) == 0
+                }
                 template = next(
-                    (t for t in blueprint["missing_piece_templates"] if t["color"] == missing_color),
-                    blueprint["missing_piece_templates"][0],
+                    (t for t in blueprint["missing_piece_templates"] if t["category"] in missing_cats),
+                    blueprint["missing_piece_templates"][i % len(blueprint["missing_piece_templates"])],
                 )
-                brand = brands[len(gaps) % len(brands)]
+            brand = _brand()
+            desc = f"{missing_color} {template['category'].lower()}"
+            reason_parts = [
+                f"Your {primary_aesthetic.capitalize()} DNA palette calls for {missing_color.lower()} — you have none.",
+            ]
+            if gap_delta > 0.10:
+                reason_parts.append(
+                    f"Your wardrobe is {round(actual_neutral_ratio*100)}% neutral vs "
+                    f"the {round(target_neutral*100)}% target; a {missing_color.lower()} piece helps close this gap."
+                )
+            # Outfit-pairing context: name a real item from the wardrobe it would pair with
+            pairing_item = next(
+                (it["name"] for it in wardrobe_items
+                 if it.get("category", "") in ("Skirt", "Trousers", "Jeans", "Dress", "Bottom", "Pants", "Shorts")
+                 and it.get("color", "") != missing_color),
+                None,
+            ) or next((it["name"] for it in wardrobe_items), None)
+            if pairing_item:
+                reason_parts.append(f"Pairs directly with your {pairing_item}.")
+            gaps.append({
+                "gap_type": "missing_color",
+                "category": template["category"],
+                "description": desc,
+                "reason": " ".join(reason_parts),
+                "priority": "high" if i < 2 else "medium",
+                "affiliate_query": f"{missing_color} {template['category']} {brand['search_suffix']}",
+                "affiliate_brand": brand["name"],
+                "affiliate_url": _url(brand, f"{missing_color} {template['category']}"),
+                "dna_alignment_score": round(inventory_alignment * 100, 1),
+            })
+
+        # 3. Outfit-pairing gaps — look at actual wardrobe items and suggest what's missing
+        #    to complete an outfit (e.g. have a skirt but no matching top in a neutral)
+        PAIRING_RULES = [
+            # (item_category, missing_category, suggestion_label_template)
+            ("Skirt",    "Top",      "{color} fitted top to pair with your {item}"),
+            ("Skirt",    "Shoes",    "Heels or ankle boots to style with your {item}"),
+            ("Dress",    "Outerwear","Light jacket or blazer to layer over your {item}"),
+            ("Trousers", "Top",      "Tucked blouse or structured top for your {item}"),
+            ("Jeans",    "Outerwear","A classic blazer to elevate your {item}"),
+            ("Top",      "Bottom",   "Trousers or a skirt to complete the look with your {item}"),
+            ("Shoes",    "Bag",      "A complementary bag to finish your {item} outfit"),
+        ]
+        seen_pairing_cats: set = set()
+        for item in wardrobe_items:
+            if len(gaps) >= 6:
+                break
+            item_cat = item.get("category", "")
+            item_color = item.get("color", "")
+            item_name = item.get("name", item_cat)
+            for rule_cat, need_cat, label_tmpl in PAIRING_RULES:
+                if item_cat != rule_cat:
+                    continue
+                if need_cat in seen_pairing_cats:
+                    continue
+                # Check if user already has something in need_cat
+                has_need = sum(
+                    v for k, v in category_counts.items()
+                    if k.lower() in need_cat.lower() or need_cat.lower() in k.lower()
+                ) > 0
+                if has_need:
+                    continue
+                # Build a complementary color suggestion
+                COMPLEMENT = {
+                    "Burgundy": "Ivory", "Red": "White", "Navy": "White",
+                    "Black": "White", "White": "Black", "Olive": "Cream",
+                    "Rust": "Cream", "Beige": "Black", "Camel": "White",
+                    "Gray": "White", "Brown": "Beige", "Green": "Cream",
+                }
+                suggest_color = COMPLEMENT.get(item_color, blueprint["must_have_colors"][0] if blueprint["must_have_colors"] else "Neutral")
+                label = label_tmpl.format(color=suggest_color, item=item_name)
+                brand = _brand()
                 gaps.append({
-                    "gap_type": "color_imbalance",
-                    "category": template["category"],
-                    "description": f"{missing_color} {template['category'].lower()} — DNA anchor color",
-                    "reason": (
-                        f"Your wardrobe is {round(actual_neutral_ratio*100)}% neutral "
-                        f"but your {primary_aesthetic.capitalize()} DNA targets {round(target_neutral*100)}%. "
-                        f"A {missing_color.lower()} piece closes {round(gap_delta*100)}% of the gap."
-                    ),
-                    "priority": "high" if gap_delta > 0.25 else "medium",
-                    "affiliate_query": f"{missing_color} {template['category']} {brand['search_suffix']}",
+                    "gap_type": "outfit_pairing",
+                    "category": need_cat,
+                    "description": label,
+                    "reason": f"You have {item_name} but nothing to complete the outfit — this is the missing piece.",
+                    "priority": "medium",
+                    "affiliate_query": f"{suggest_color} {need_cat} {brand['search_suffix']}",
                     "affiliate_brand": brand["name"],
-                    "affiliate_url": f"https://www.{brand['affiliate_base']}/search?q={missing_color}+{template['category'].replace(' ', '+')}",
+                    "affiliate_url": _url(brand, f"{suggest_color} {need_cat}"),
                     "dna_alignment_score": round(inventory_alignment * 100, 1),
                 })
+                seen_pairing_cats.add(need_cat)
 
-        # 3. Pattern overload (e.g. Minimalist with too many prints)
+        # 4. Pattern overload (e.g. Minimalist with too many prints)
         max_pattern = blueprint["max_pattern_ratio"]
-        if actual_pattern_ratio > max_pattern + 0.10:
+        if actual_pattern_ratio > max_pattern + 0.10 and len(gaps) < 6:
             excess = round((actual_pattern_ratio - max_pattern) * total)
-            brand = brands[0]
+            brand = _brand()
             gaps.append({
                 "gap_type": "pattern_overload",
                 "category": "Top",
@@ -402,35 +512,46 @@ class GapAnalyzer:
                 "priority": "medium",
                 "affiliate_query": f"solid neutral top {brand['search_suffix']}",
                 "affiliate_brand": brand["name"],
-                "affiliate_url": f"https://www.{brand['affiliate_base']}/search?q=solid+top",
+                "affiliate_url": _url(brand, "solid neutral top"),
                 "dna_alignment_score": round(inventory_alignment * 100, 1),
             })
 
-        # 4. If inventory is well-aligned but thin, suggest "unlock" pieces
-        if len(gaps) == 0 and len(wardrobe_items) < 10:
-            template = blueprint["missing_piece_templates"][0]
-            brand = brands[0]
+        # 5. If still thin on suggestions, fill with all blueprint templates not yet covered
+        covered_cats = {g["category"] for g in gaps}
+        for template in blueprint["missing_piece_templates"]:
+            if len(gaps) >= 6:
+                break
+            if template["category"] in covered_cats:
+                continue
+            brand = _brand()
             gaps.append({
-                "gap_type": "wardrobe_thin",
+                "gap_type": "blueprint_suggestion",
                 "category": template["category"],
                 "description": template["label"],
                 "reason": (
-                    f"Your style DNA alignment is strong ({round(inventory_alignment*100)}%), "
-                    "but a larger wardrobe unlocks more outfit combinations."
+                    f"A {primary_aesthetic} wardrobe staple you're missing — "
+                    f"adds versatility and more outfit combinations."
                 ),
                 "priority": "low",
                 "affiliate_query": f"{template['label']} {brand['search_suffix']}",
                 "affiliate_brand": brand["name"],
-                "affiliate_url": f"https://www.{brand['affiliate_base']}/search?q={template['label'].replace(' ', '+')}",
+                "affiliate_url": _url(brand, template["label"]),
                 "dna_alignment_score": round(inventory_alignment * 100, 1),
             })
+            covered_cats.add(template["category"])
 
         return {
             "primary_aesthetic": primary_aesthetic,
             "dna_alignment_score": round(inventory_alignment * 100, 1),
             "neutral_ratio": round(actual_neutral_ratio * 100, 1),
             "pattern_ratio": round(actual_pattern_ratio * 100, 1),
-            "gaps": gaps[:6],
+            "gaps": [
+                g for g in gaps
+                if not (
+                    inspired_category and
+                    g.get("category", "").lower() in _broad_category(inspired_category)
+                )
+            ][:6],
             "wardrobe_count": len(wardrobe_items),
             "analysis_method": "fashionclip_pseudo_embedding_cosine",
         }

@@ -16,13 +16,15 @@ const storage = {
   set: (key: string, val: any) => localStorage.setItem(`wya_v3_${key}`, JSON.stringify(val)),
 };
 
-const getAuthHeaders = (isFormData = false) => {
+const getAuthHeaders = (isFormData = false, isGet = false) => {
   const token = localStorage.getItem('wya_token');
   const headers: Record<string, string> = {};
   if (token && token !== 'null' && token !== 'undefined') {
     headers['Authorization'] = `Bearer ${token}`;
   }
-  if (!isFormData) headers['Content-Type'] = 'application/json';
+  // Don't set Content-Type for GET requests or FormData — GET+JSON content-type
+  // can confuse some proxies and cause auth middleware to misread the request.
+  if (!isFormData && !isGet) headers['Content-Type'] = 'application/json';
   return headers;
 };
 
@@ -47,11 +49,12 @@ const handleResponse = async (response: Response, defaultError: string) => {
 
 const apiFetch = async (endpoint: string, options: RequestInit = {}) => {
   const url = `${BASE_URL}${endpoint}`;
+  const isGet = !options.method || options.method.toUpperCase() === 'GET';
   try {
     const response = await fetch(url, {
       ...options,
       headers: {
-        ...getAuthHeaders(options.body instanceof FormData),
+        ...getAuthHeaders(options.body instanceof FormData, isGet),
         ...(options.headers || {})
       }
     });
@@ -152,7 +155,7 @@ export const api = {
       body: JSON.stringify({ image, variation })
     }),
     /** Gap analysis: compare Style DNA to actual inventory */
-    gapAnalysis: async () => apiFetch('/api/ai/gap-analysis', { method: 'POST' }),
+    gapAnalysis: async (inspiredCategory?: string) => apiFetch('/api/ai/gap-analysis', { method: 'POST', body: JSON.stringify({ inspired_category: inspiredCategory || '' }) }),
   },
 
   // ─── Outfits (server-persisted) ────────────────────────────────────────────

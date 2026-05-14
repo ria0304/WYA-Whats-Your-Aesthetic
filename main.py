@@ -136,7 +136,7 @@ async def green_audit(data: GreenAuditRequest, user: UserProfile = Depends(get_c
     return await FashionAIModel.audit_brand(data.brand)
 
 @app.post("/api/ai/gap-analysis")
-async def gap_analysis(user: UserProfile = Depends(get_current_user)):
+async def gap_analysis(data: Dict[str, Any] = Body(default={}), user: UserProfile = Depends(get_current_user)):
     """
     Shop Your Closet — FashionCLIP-style gap analysis.
     Compares Style DNA embedding against wardrobe inventory centroid,
@@ -163,7 +163,8 @@ async def gap_analysis(user: UserProfile = Depends(get_current_user)):
         except Exception:
             style_dna = []
 
-    result = gap_analyzer.analyze(style_dna, wardrobe_items)
+    inspired_category = (data.get("inspired_category") or "").strip()
+    result = gap_analyzer.analyze(style_dna, wardrobe_items, inspired_category=inspired_category)
 
     # Determine gender label for search queries
     gender = (user.gender or "Female").strip().lower()

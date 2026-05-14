@@ -1,4 +1,3 @@
-
 /**
  * LocalML Service
  * Performs histogram-based analysis for device-side Computer Vision
@@ -9,6 +8,17 @@ export interface LocalAnalysis {
   shadeNames: string[];
   complexity: 'Simple' | 'Medium' | 'High';
   temperature: 'Warm' | 'Cool' | 'Neutral';
+  /** True if a person/model appears to be wearing the item in the photo */
+  hasModel: boolean;
+  /**
+   * Best-guess category from client-side shape analysis.
+   * Used to pre-fill the category dropdown instantly before the backend responds.
+   * Values: 'Shoes' | 'Sneakers' | 'Boots' | 'Heels' | 'Sandals' | 'Loafers' |
+   *         'Flats' | 'Slides' | 'Top' | 'Dress' | 'Pants' | 'Bag' | '' (unknown)
+   */
+  guessCategory: string;
+  /** Shoe sub-type when guessCategory is 'Shoes' */
+  shoeSubtype: string;
 }
 
 /**
@@ -132,6 +142,212 @@ const getColorName = (rgbStr: string, excludedNames: Set<string>): string => {
   return candidates[0].name;
 };
 
+
+// ─── Shoe sub-type detection from silhouette ─────────────────────────────────
+/**
+ * Uses canvas pixel analysis on a 128×128 greyscale silhouette to classify
+ * shoe sub-types without any ML model.
+ *
+ * Signals used:
+ *  • aspectRatio (h/w)   — tall → boots, wide → sneakers/flats
+ *  • fillRatio           — low fill → strappy sandals / slides
+ *  • soleThickness       — thick bottom band → platform / wedge
+ *  • heelColumn          — dense narrow right strip → heels
+ *  • toeWidth            — wide front → sneakers/loafers; narrow → heels/oxfords
+ */
+function classifyShoeSubtype(
+  ctx: CanvasRenderingContext2D,
+  W: number,
+  H: number
+): string {
+  const data = ctx.getImageData(0, 0, W, H).data;
+
+  // Build a binary silhouette: pixel is "shoe" if it differs from the
+  // dominant background colour by more than a threshold.
+  // Use top-left 8×8 corner as background sample.
+  let bgR = 0, bgG = 0, bgB = 0, bgCount = 0;
+  for (let y = 0; y < 8; y++) {
+    for (let x = 0; x < 8; x++) {
+      const i = (y * W + x) * 4;
+      bgR += data[i]; bgG += data[i+1]; bgB += data[i+2];
+      bgCount++;
+    }
+  }
+  bgR /= bgCount; bgG /= bgCount; bgB /= bgCount;
+
+  const mask: boolean[][] = Array.from({ length: H }, (_, y) =>
+    Array.from({ length: W }, (_, x) => {
+      const i = (y * W + x) * 4;
+      const dr = data[i] - bgR, dg = data[i+1] - bgG, db = data[i+2] - bgB;
+      return Math.sqrt(dr*dr + dg*dg + db*db) > 30;
+    })
+  );
+
+  // Bounding box of silhouette
+  let minX = W, maxX = 0, minY = H, maxY = 0;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      if (mask[y][x]) {
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+      }
+    }
+  }
+  const bw = maxX - minX + 1;
+  const bh = maxY - minY + 1;
+  if (bw < 10 || bh < 10) return 'Shoes'; // can't analyse
+
+  const aspectRatio = bh / bw; // > 1.5 = tall (boots), < 0.9 = wide (sneakers)
+
+  // Fill ratio inside bounding box
+  let filledPixels = 0;
+  for (let y = minY; y <= maxY; y++)
+    for (let x = minX; x <= maxX; x++)
+      if (mask[y][x]) filledPixels++;
+  const fillRatio = filledPixels / (bw * bh);
+
+  // Sole band: bottom 20% of bounding box
+  const soleTop = maxY - Math.round(bh * 0.20);
+  let soleFilled = 0, soleTotal = 0;
+  for (let y = soleTop; y <= maxY; y++) {
+    for (let x = minX; x <= maxX; x++) {
+      soleTotal++;
+      if (mask[y][x]) soleFilled++;
+    }
+  }
+  const soleFill = soleFilled / Math.max(soleTotal, 1);
+
+  // Heel column: rightmost 18% of bounding box
+  const heelLeft = maxX - Math.round(bw * 0.18);
+  let heelFilled = 0, heelTotal = 0;
+  for (let y = minY; y <= maxY; y++) {
+    for (let x = heelLeft; x <= maxX; x++) {
+      heelTotal++;
+      if (mask[y][x]) heelFilled++;
+    }
+  }
+  const heelDensity = heelFilled / Math.max(heelTotal, 1);
+
+  // Toe width: top 25% of bounding box, measure width of filled pixels
+  const toeBottom = minY + Math.round(bh * 0.25);
+  let maxToeWidth = 0;
+  for (let y = minY; y <= toeBottom; y++) {
+    let rowFilled = 0;
+    for (let x = minX; x <= maxX; x++) if (mask[y][x]) rowFilled++;
+    if (rowFilled > maxToeWidth) maxToeWidth = rowFilled;
+  }
+  const toeWidthRatio = maxToeWidth / bw;
+
+  // ── Decision rules (ordered from most specific to least) ───────────────
+  if (aspectRatio > 2.2)                                      return 'Boots';     // very tall shaft
+  if (aspectRatio > 1.4 && fillRatio > 0.55)                 return 'Boots';     // ankle boots
+  if (fillRatio < 0.38 && aspectRatio < 1.2)                 return 'Sandals';   // very open / strappy
+  if (fillRatio < 0.50 && soleFill > 0.6 && aspectRatio < 1.3) return 'Slides';  // backless open
+  if (soleFill > 0.80 && aspectRatio < 0.85)                 return 'Platform Shoes'; // thick flat sole
+  if (heelDensity < 0.20 && aspectRatio < 1.0 && fillRatio > 0.55) return 'Flats';   // no heel column
+  if (heelDensity > 0.60 && toeWidthRatio < 0.55)            return 'Heels';     // narrow toe + heel
+  if (heelDensity > 0.45 && aspectRatio < 1.2)               return 'Heels';
+  if (aspectRatio < 1.0 && fillRatio > 0.65 && toeWidthRatio > 0.70) return 'Sneakers'; // chunky/wide
+  if (toeWidthRatio < 0.50 && fillRatio > 0.60 && aspectRatio < 1.3) return 'Loafers';  // narrow toe, closed
+  if (aspectRatio < 1.15 && fillRatio > 0.60)                return 'Sneakers';  // generic low shoe
+  return 'Shoes';
+}
+
+// ─── Quick broad-category guess from shape ───────────────────────────────────
+/**
+ * Returns a broad category hint using aspect ratio, fill, and sole analysis.
+ * Shoe detection first (wide, low, distinctive sole), then clothing silhouettes.
+ */
+function guessBroadCategory(
+  img: HTMLImageElement
+): { category: string; shoeSubtype: string } {
+  const W = 128, H = 128;
+  const c = document.createElement('canvas');
+  c.width = W; c.height = H;
+  const ctx = c.getContext('2d');
+  if (!ctx) return { category: '', shoeSubtype: '' };
+  ctx.drawImage(img, 0, 0, W, H);
+
+  const data = ctx.getImageData(0, 0, W, H).data;
+
+  // Background colour (corner average)
+  let bgR = 0, bgG = 0, bgB = 0;
+  const corners = [[0,0],[0,W-4],[H-4,0],[H-4,W-4]];
+  for (const [cy, cx] of corners) {
+    const i = (cy * W + cx) * 4;
+    bgR += data[i]; bgG += data[i+1]; bgB += data[i+2];
+  }
+  bgR /= 4; bgG /= 4; bgB /= 4;
+
+  // Silhouette fill ratio (all pixels that differ from bg)
+  let filled = 0;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      const dr = data[i]-bgR, dg = data[i+1]-bgG, db = data[i+2]-bgB;
+      if (Math.sqrt(dr*dr+dg*dg+db*db) > 30) filled++;
+    }
+  }
+  const fillRatio = filled / (W * H);
+
+  // Tight bounding box
+  let minX = W, maxX = 0, minY = H, maxY = 0;
+  for (let y = 0; y < H; y++) {
+    for (let x = 0; x < W; x++) {
+      const i = (y * W + x) * 4;
+      const dr = data[i]-bgR, dg = data[i+1]-bgG, db = data[i+2]-bgB;
+      if (Math.sqrt(dr*dr+dg*dg+db*db) > 30) {
+        if (x < minX) minX = x; if (x > maxX) maxX = x;
+        if (y < minY) minY = y; if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX <= minX || maxY <= minY) return { category: '', shoeSubtype: '' };
+
+  const bw = maxX - minX + 1;
+  const bh = maxY - minY + 1;
+  const aspectRatio = bh / bw; // h/w
+
+  // Bottom-strip sole detection (shoes have a dense, wide bottom band)
+  const soleTop = maxY - Math.round(bh * 0.18);
+  let soleFilled = 0, soleWidth = 0;
+  for (let y = soleTop; y <= maxY; y++) {
+    let rowStart = -1, rowEnd = -1;
+    for (let x = minX; x <= maxX; x++) {
+      const i = (y * W + x) * 4;
+      const dr = data[i]-bgR, dg = data[i+1]-bgG, db = data[i+2]-bgB;
+      if (Math.sqrt(dr*dr+dg*dg+db*db) > 30) {
+        if (rowStart === -1) rowStart = x;
+        rowEnd = x;
+        soleFilled++;
+      }
+    }
+    if (rowEnd > rowStart) soleWidth = Math.max(soleWidth, rowEnd - rowStart);
+  }
+  const soleSpan = soleWidth / bw; // how wide the sole is relative to bounding box
+
+  // ── Shoe detection heuristic ──────────────────────────────────────────────
+  // Shoes: wider than tall (aspect < 1.4), sole spans most of the width, not very tall
+  const looksLikeShoe =
+    aspectRatio < 1.6 &&
+    soleSpan > 0.50 &&
+    fillRatio > 0.20 &&
+    fillRatio < 0.90;
+
+  if (looksLikeShoe) {
+    const subtype = classifyShoeSubtype(ctx, W, H);
+    return { category: 'Shoes', shoeSubtype: subtype };
+  }
+
+  // ── Clothing shape hints ──────────────────────────────────────────────────
+  if (aspectRatio > 2.8) return { category: 'Dress', shoeSubtype: '' };
+  if (aspectRatio > 1.8) return { category: 'Dress', shoeSubtype: '' };
+  if (aspectRatio > 1.2 && aspectRatio < 1.8) return { category: 'Top', shoeSubtype: '' };
+  if (aspectRatio < 0.7) return { category: 'Bag', shoeSubtype: '' };
+
+  return { category: '', shoeSubtype: '' };
+}
+
 export const analyzeImageLocally = (base64: string): Promise<LocalAnalysis> => {
   return new Promise((resolve) => {
     const img = new Image();
@@ -140,7 +356,7 @@ export const analyzeImageLocally = (base64: string): Promise<LocalAnalysis> => {
     img.onload = () => {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      if (!ctx) return resolve({ palette: [], shadeNames: [], complexity: 'Simple', temperature: 'Neutral' });
+      if (!ctx) return resolve({ palette: [], shadeNames: [], complexity: 'Simple', temperature: 'Neutral', hasModel: false, guessCategory: '', shoeSubtype: '' });
 
       const size = 128;
       
@@ -208,10 +424,38 @@ export const analyzeImageLocally = (base64: string): Promise<LocalAnalysis> => {
       const avgB = bT / (size * size);
       const temperature = avgR > avgB + 10 ? 'Warm' : (avgB > avgR + 10 ? 'Cool' : 'Neutral');
 
-      resolve({ palette, shadeNames, complexity: 'Medium', temperature });
+      // ── Model/person detection via skin-tone pixel counting ──────────────
+      // Scan the full image at low resolution for skin-tone pixels.
+      const skinCanvas = document.createElement('canvas');
+      const skinCtx = skinCanvas.getContext('2d');
+      skinCanvas.width = 64;
+      skinCanvas.height = 64;
+      let hasModel = false;
+      if (skinCtx) {
+        skinCtx.drawImage(img, 0, 0, 64, 64);
+        const skinData = skinCtx.getImageData(0, 0, 64, 64).data;
+        let skinPixels = 0;
+        const totalPixels = 64 * 64;
+        for (let i = 0; i < skinData.length; i += 4) {
+          const r = skinData[i], g = skinData[i + 1], b = skinData[i + 2];
+          // Broad skin-tone heuristic covering light to deep complexions:
+          // R is dominant, not too dark, not too bright (avoids white BG / shadows)
+          const isSkin =
+            r > 60 && g > 30 && b > 15 &&
+            r > g && r > b &&
+            (r - g) > 5 &&
+            r < 250 && g < 220 && b < 200;
+          if (isSkin) skinPixels++;
+        }
+        // >3% skin pixels → a person is likely present wearing the item
+        hasModel = (skinPixels / totalPixels) > 0.03;
+      }
+
+      const { category: guessCategory, shoeSubtype } = guessBroadCategory(img);
+      resolve({ palette, shadeNames, complexity: 'Medium', temperature, hasModel, guessCategory, shoeSubtype });
     };
     img.onerror = () => {
-      resolve({ palette: [], shadeNames: [], complexity: 'Simple', temperature: 'Neutral' });
+      resolve({ palette: [], shadeNames: [], complexity: 'Simple', temperature: 'Neutral', hasModel: false, guessCategory: '', shoeSubtype: '' });
     };
   });
 };

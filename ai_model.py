@@ -113,7 +113,7 @@ class FashionAIModel:
 
     @staticmethod
     async def autotag_garment(image_data: str) -> Dict[str, Any]:
-        """Decode → mask → colour → category → fabric → tags."""
+        """Decode → mask → colour → category → fabric → pattern → smart name → tags."""
         try:
             if not image_data or not isinstance(image_data, str):
                 raise ValueError("Invalid image_data: must be non-empty string")
@@ -124,25 +124,81 @@ class FashionAIModel:
 
             mask = FashionAIModel.vision.get_improved_mask(img)
             mask_coverage = np.sum(mask > 0) / (img.shape[0] * img.shape[1]) * 100
+
             category = FashionAIModel.vision.identify_garment(img, mask)
             hex_color, color_name, rgb = FashionAIModel.vision.get_dominant_color(img, mask)
+
+            # Secondary color (set as side-effect during get_dominant_color)
+            secondary_color: str = getattr(FashionAIModel.vision, "_last_secondary_color", None) or ""
+
+            # Shoe sub-type (set as side-effect during identify_garment)
+            shoe_subtype: str = getattr(FashionAIModel.vision, "_last_shoe_subtype", "Shoes")
+
             texture = FashionAIModel.vision.analyze_texture_properties(img, mask)
+            pattern = FashionAIModel.vision.detect_pattern(img, mask)
+            pattern_type: str = pattern.get("pattern_type", "solid")
+            has_pattern: bool = pattern.get("has_pattern", False)
+
             fabric = FashionAIModel.classifier.classify(
-                variance=texture["variance"], brightness=texture["brightness"],
-                color=color_name, category=category,
+                variance=texture["variance"],
+                brightness=texture["brightness"],
+                color=color_name,
+                category=category,
+                pattern_type=pattern_type,
+                shoe_subtype=shoe_subtype if category == "Shoes" else "",
             ) or "Cotton"
 
-            name_parts = ([fabric] if fabric not in ("Cotton", "Polyester") else []) + [color_name, category]
+            # ── Smart name generation ──────────────────────────────────────────
+            # Build a human-readable name like "Floral Chiffon Midi Dress" or
+            # "Washed Indigo Straight-Leg Jeans" instead of a raw dump of fields.
+            _GENERIC_FABRICS = {"Cotton", "Polyester", "Synthetic", "Fabric", "Metal"}
+            _DISPLAY_CATEGORY = {
+                "T-Shirt": "T-Shirt", "Sweater": "Sweater", "Top": "Top",
+                "Trousers": "Trousers", "Jeans": "Jeans", "Shorts": "Shorts",
+                "Skirt": "Skirt", "Dress": "Dress", "Jumpsuit": "Jumpsuit",
+                "Jacket": "Jacket", "Outerwear": "Coat", "Shoes": shoe_subtype,
+                "Bag": "Bag", "Accessories": "Accessory",
+                "Necklace": "Necklace", "Ring": "Ring",
+                "Earrings": "Earrings", "Watch": "Watch",
+            }
+
+            name_parts: list[str] = []
+
+            # 1. Pattern descriptor
+            if has_pattern and pattern_type != "solid":
+                name_parts.append(pattern_type.capitalize())  # e.g. "Floral", "Striped"
+
+            # 2. Fabric — only if distinctive
+            if fabric not in _GENERIC_FABRICS:
+                name_parts.append(fabric)  # e.g. "Satin", "Denim", "Linen"
+
+            # 3. Color — primary (+ secondary if present and multi-color)
+            if secondary_color and secondary_color != color_name:
+                name_parts.append(f"{color_name} & {secondary_color}")
+            else:
+                name_parts.append(color_name)
+
+            # 4. Category display label
+            name_parts.append(_DISPLAY_CATEGORY.get(category, category))
+
+            name = " ".join(name_parts)
 
             return {
                 "success": True,
-                "name": " ".join(name_parts),
+                "name": name,
                 "category": str(category),
                 "fabric": str(fabric),
                 "color": str(color_name),
+                "secondary_color": str(secondary_color),
                 "hex_color": str(hex_color),
                 "rgb": [int(rgb[0]), int(rgb[1]), int(rgb[2])],
-                "details": f"AI Scan: {fabric} {category} | Color: {color_name} ({hex_color})",
+                "pattern": pattern_type if has_pattern else "solid",
+                "has_pattern": bool(has_pattern),
+                "details": (
+                    f"AI Scan: {fabric} {category} | "
+                    f"Color: {color_name}{' & ' + secondary_color if secondary_color else ''} ({hex_color})"
+                    + (f" | Pattern: {pattern_type}" if has_pattern else "")
+                ),
                 "confidence": 0.96,
                 "texture_variance": float(round(texture["variance"], 2)),
                 "brightness": float(round(texture["brightness"], 2)),

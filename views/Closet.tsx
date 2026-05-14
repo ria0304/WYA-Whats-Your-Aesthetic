@@ -158,11 +158,28 @@ const Closet: React.FC = () => {
         try {
           const local = await analyzeImageLocally(base64);
           setLocalAnalysis(local);
+
+          // ── Pre-fill category instantly from client-side shape analysis ──
+          // This runs before the backend responds so the user sees a result right away.
+          if (local.guessCategory) {
+            const displayCategory = local.shoeSubtype || local.guessCategory;
+            setNewItem(prev => ({
+              ...prev,
+              category: displayCategory,
+              name: prev.name || displayCategory,
+            }));
+          }
+
           const analysis = await api.wardrobe.scanFabric(base64);
           if (analysis && analysis.success) {
+            // Backend result wins — but keep local shoe subtype if backend just says "Shoes"
+            const finalCategory =
+              analysis.category === 'Shoes' && local.shoeSubtype
+                ? local.shoeSubtype   // use fine-grained local subtype
+                : analysis.category;
             setNewItem({
               name: analysis.name,
-              category: analysis.category,
+              category: finalCategory,
               color: local.shadeNames[0] || analysis.color,
               fabric: analysis.fabric
             });
@@ -445,13 +462,26 @@ const Closet: React.FC = () => {
                   </div>
                 )}
 
-                {/* Background-removal tip */}
-                <div className="flex items-center gap-2 bg-purple-50 rounded-2xl px-4 py-3 border border-purple-100">
-                  <Wand2 className="w-4 h-4 text-purple-400 shrink-0" />
-                  <p className="text-[9px] text-purple-600 font-bold leading-relaxed">
-                    After saving, tap the wand icon on any item to remove its background — perfect for lookbook-style Daily Drops.
-                  </p>
-                </div>
+                {/* Background-removal tip — two states based on model detection */}
+                {localAnalysis && (
+                  localAnalysis.hasModel ? (
+                    /* Model detected — wand tip + double-tap warning */
+                    <div className="flex items-start gap-2 bg-purple-50 rounded-2xl px-4 py-3 border border-purple-100">
+                      <Wand2 className="w-4 h-4 text-purple-400 shrink-0 mt-0.5" />
+                      <p className="text-[9px] text-purple-600 font-bold leading-relaxed">
+                        After saving, tap the wand icon on any item to remove its background — perfect for lookbook-style Daily Drops. ⚠️ Tap the wand twice — the first time may show a blue tint while processing. Tap again for the clean result.
+                      </p>
+                    </div>
+                  ) : (
+                    /* No model — nudge user to re-shoot with model for best bg removal */
+                    <div className="flex items-start gap-2 bg-amber-50 rounded-2xl px-4 py-3 border border-amber-100">
+                      <AlertCircle className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+                      <p className="text-[9px] text-amber-700 font-bold leading-relaxed">
+                        For best background removal results, use a photo where a model is wearing the item. Flat-lays and hanger shots may produce less clean cutouts.
+                      </p>
+                    </div>
+                  )
+                )}
 
                 <div className="relative">
                   <div className="flex items-center justify-between mb-2">

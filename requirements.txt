@@ -13,4 +13,4 @@ scikit-learn>=1.4.0
 torch>=2.2.0
 transformers>=4.40.0
 pywebpush>=2.0.0
-rembg>=2.0.57
+rembg[cpu]>=2.0.57

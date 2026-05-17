@@ -102,6 +102,11 @@ def load_fashionclip() -> None:
 class LocalComputerVision:
     """Local CV engine: segmentation, dominant-color extraction, texture analysis, embeddings, background removal."""
 
+    def __init__(self):
+        """Initialize LocalComputerVision with storage for secondary color and shoe subtype."""
+        self._last_secondary_color: Optional[str] = None
+        self._last_shoe_subtype: str = "Shoes"
+
     # ---- image decoding ----
 
     def decode_image(self, base64_str: str) -> np.ndarray:
@@ -604,10 +609,6 @@ class LocalComputerVision:
                         scores[bucket] += score
                         break
 
-            # Reset side-effect slots
-            self._last_secondary_color: Optional[str] = None
-            self._last_shoe_subtype: str = "Shoes"
-
             # ── Accessory / jewellery / bag — high specificity ───────────────
             if scores["jewellery"] > 0.2:
                 raw = broad_labels[probs.argmax().item()]
@@ -660,181 +661,6 @@ class LocalComputerVision:
                 return "Jumpsuit" if aspect_ratio > 2.2 else "Skirt"
 
             raw = broad_labels[probs.argmax().item()]
-            if "skirt" in raw.lower() and aspect_ratio < 2.5:
-                return "Skirt"
-            return CATEGORY_MAP.get(raw, "Top")
-
-        except Exception as exc:
-            logger.warning("FashionCLIP identification failed: %s", exc)
-            return "Top"
-        try:
-            from PIL import Image
-            import torch
-
-            cropped = self._get_garment_crop(image, mask)
-            if cropped.shape[0] < 50 or cropped.shape[1] < 50:
-                cropped = image
-
-            h, w = cropped.shape[:2]
-            aspect_ratio = h / w if w > 0 else 1.0
-            if mask is not None and np.sum(mask > 0) > 0:
-                coords = cv2.findNonZero(mask)
-                if coords is not None:
-                    _, _, wm, hm = cv2.boundingRect(coords)
-                    aspect_ratio = hm / wm if wm > 0 else aspect_ratio
-
-            pil_img = Image.fromarray(cv2.cvtColor(cropped, cv2.COLOR_BGR2RGB))
-            labels = [
-                # Tops (subcategories preserved for name generation)
-                "t-shirt", "shirt", "blouse", "tank top", "crop top", "sweater", "hoodie",
-                "cardigan", "polo", "turtleneck", "corset top", "tube top",
-                # Bottoms
-                "jeans", "pants", "trousers", "leggings", "shorts", "cargo pants",
-                "joggers", "sweatpants", "wide-leg pants", "straight-leg pants",
-                # Skirts
-                "skirt", "pencil skirt", "pleated skirt", "mini skirt", "midi skirt", "maxi skirt",
-                "wrap skirt", "a-line skirt",
-                # Dresses
-                "dress", "maxi dress", "mini dress", "midi dress", "bodycon dress",
-                "a-line dress", "wrap dress", "slip dress", "shirt dress",
-                # Jumpsuits
-                "jumpsuit", "romper", "overalls", "playsuit",
-                # Outerwear
-                "jacket", "coat", "blazer", "puffer jacket", "denim jacket",
-                "leather jacket", "trench coat", "windbreaker", "bomber jacket",
-                # Shoes — descriptive enough for CLIP to discriminate
-                "white sneakers", "chunky sneakers", "running sneakers", "canvas sneakers",
-                "leather ankle boots", "knee-high boots", "combat boots", "chelsea boots", "cowboy boots",
-                "stiletto heels", "block heels", "kitten heels", "platform heels", "wedge heels",
-                "strappy sandals", "flat sandals", "sporty sandals", "gladiator sandals",
-                "loafers", "penny loafers", "moccasins",
-                "oxford shoes", "derby shoes", "brogues",
-                "ballet flats", "pointed flats",
-                "mules", "slide sandals", "slip-on shoes",
-                "platform shoes", "mary janes",
-                "flip flops", "pool slides",
-                # Bags & Accessories
-                "handbag", "tote bag", "backpack", "crossbody bag", "clutch",
-                "belt", "hat", "cap", "scarf", "sunglasses",
-                # Jewellery
-                "necklace", "earrings", "ring", "bracelet", "watch",
-            ]
-            inputs = clip_processor(text=labels, images=pil_img, return_tensors="pt", padding=True)
-            with torch.no_grad():
-                probs = clip_model(**inputs).logits_per_image.softmax(dim=1)
-
-            top_probs, top_indices = torch.topk(probs[0], 5)
-            top_labels = [labels[i] for i in top_indices]
-            top_scores = [p.item() for p in top_probs]
-
-            scores: Dict[str, float] = {
-                "jumpsuit": 0, "dress": 0, "skirt": 0,
-                "pants": 0, "top": 0, "outerwear": 0,
-                "shoes": 0, "bag": 0, "accessory": 0, "jewellery": 0,
-            }
-            buckets = {
-                "jumpsuit": ["jumpsuit", "romper", "overalls", "playsuit"],
-                "dress": ["dress", "maxi dress", "mini dress", "midi dress", "bodycon", "a-line", "wrap dress", "slip dress", "shirt dress"],
-                "skirt": ["skirt", "pencil skirt", "pleated skirt", "mini skirt", "midi skirt", "maxi skirt", "wrap skirt", "a-line skirt"],
-                "pants": ["jeans", "pants", "trousers", "leggings", "shorts", "cargo", "joggers", "sweatpants", "wide-leg", "straight-leg"],
-                "top": ["t-shirt", "shirt", "blouse", "tank top", "crop top", "sweater", "hoodie", "cardigan", "polo", "turtleneck", "corset top", "tube top"],
-                "outerwear": ["jacket", "coat", "blazer", "puffer", "trench", "windbreaker", "bomber"],
-                "shoes": [
-                    "sneakers", "boots", "heels", "sandals", "loafers", "oxfords",
-                    "flip flops", "ankle boots", "platform", "mules", "flats",
-                    "mary janes", "brogues", "derby", "moccasins", "slides",
-                    "slip-on", "chelsea", "combat", "stiletto", "kitten",
-                    "wedge", "strappy", "gladiator", "pool slides", "ballet",
-                ],
-                "bag": ["handbag", "tote bag", "backpack", "crossbody bag", "clutch"],
-                "accessory": ["belt", "hat", "cap", "scarf", "sunglasses"],
-                "jewellery": ["necklace", "earrings", "ring", "bracelet", "watch"],
-            }
-            for label, score in zip(top_labels, top_scores):
-                for bucket, keywords in buckets.items():
-                    if any(kw in label.lower() for kw in keywords):
-                        scores[bucket] += score
-                        break
-
-            # ── Accessory / jewellery / shoes / bag — highest specificity first ──
-            if scores["jewellery"] > 0.25:
-                # Determine jewellery sub-type from top raw label
-                raw = labels[probs.argmax().item()]
-                if "watch" in raw:        return "Watch"
-                if "necklace" in raw:     return "Necklace"
-                if "ring" in raw:         return "Ring"
-                if "earring" in raw:      return "Earrings"
-                if "bracelet" in raw:     return "Necklace"  # closest closet bucket
-                return "Necklace"
-            if scores["shoes"] > 0.25:
-                raw = labels[probs.argmax().item()].lower()
-                # Store the shoe sub-type so ai_model can use it in the name
-                if any(w in raw for w in ["sneaker", "canvas sneaker", "running", "chunky sneaker"]):
-                    self._last_shoe_subtype = "Sneakers"
-                elif any(w in raw for w in ["ankle boot", "chelsea", "combat", "cowboy", "knee-high", "boot"]):
-                    self._last_shoe_subtype = "Boots"
-                elif any(w in raw for w in ["stiletto", "block heel", "kitten heel", "platform heel", "wedge", "heel"]):
-                    self._last_shoe_subtype = "Heels"
-                elif any(w in raw for w in ["strappy sandal", "flat sandal", "gladiator", "sporty sandal", "sandal"]):
-                    self._last_shoe_subtype = "Sandals"
-                elif any(w in raw for w in ["loafer", "penny loafer", "moccasin"]):
-                    self._last_shoe_subtype = "Loafers"
-                elif any(w in raw for w in ["oxford", "derby", "brogue"]):
-                    self._last_shoe_subtype = "Oxfords"
-                elif any(w in raw for w in ["ballet flat", "pointed flat", "flat"]):
-                    self._last_shoe_subtype = "Flats"
-                elif any(w in raw for w in ["mule", "slide", "slip-on", "pool slide", "flip flop"]):
-                    self._last_shoe_subtype = "Slides"
-                elif any(w in raw for w in ["mary jane"]):
-                    self._last_shoe_subtype = "Mary Janes"
-                elif any(w in raw for w in ["platform"]):
-                    self._last_shoe_subtype = "Platform Shoes"
-                else:
-                    self._last_shoe_subtype = "Shoes"
-                return "Shoes"
-            if scores["bag"] > 0.25:
-                return "Bag"
-            if scores["accessory"] > 0.25:
-                return "Accessories"
-
-            # ── Clothing decision tree ──
-            if scores["skirt"] > 0.2 and (0.8 < aspect_ratio < 2.5 or scores["skirt"] > 0.4):
-                return "Skirt"
-            if scores["jumpsuit"] > 0.25 and (aspect_ratio > 1.8 or scores["jumpsuit"] > 0.45):
-                return "Jumpsuit"
-            if scores["pants"] > 0.3:
-                if scores["jumpsuit"] > 0.2 and aspect_ratio > 2.0:
-                    return "Jumpsuit"
-                # Distinguish Jeans vs Trousers vs Shorts
-                raw = labels[probs.argmax().item()]
-                if "short" in raw:                         return "Shorts"
-                if "jean" in raw or "denim" in raw:        return "Jeans"
-                if "legging" in raw:                       return "Trousers"
-                return "Trousers"
-            if scores["dress"] > 0.3:
-                if aspect_ratio > 2.5 and scores["jumpsuit"] > 0.2:
-                    return "Jumpsuit"
-                return "Dress"
-            if scores["top"] > 0.3:
-                # Preserve subcategory for richer name
-                raw = labels[probs.argmax().item()]
-                if "sweater" in raw or "cardigan" in raw:  return "Sweater"
-                if "hoodie" in raw:                        return "Top"
-                if "t-shirt" in raw:                       return "T-Shirt"
-                return "Top"
-            if scores["outerwear"] > 0.3:
-                raw = labels[probs.argmax().item()]
-                if "blazer" in raw:   return "Jacket"
-                if "jacket" in raw:   return "Jacket"
-                return "Outerwear"
-
-            # ── Tiebreakers ──
-            if scores["jumpsuit"] > 0.15 and scores["pants"] > 0.15:
-                return "Jumpsuit" if aspect_ratio > 2.0 else "Trousers"
-            if scores["jumpsuit"] > 0.15 and scores["skirt"] > 0.15:
-                return "Jumpsuit" if aspect_ratio > 2.2 else "Skirt"
-
-            raw = labels[probs.argmax().item()]
             if "skirt" in raw.lower() and aspect_ratio < 2.5:
                 return "Skirt"
             return CATEGORY_MAP.get(raw, "Top")
@@ -902,8 +728,7 @@ class LocalComputerVision:
         hex_color = "#{:02x}{:02x}{:02x}".format(r, g, b)
 
         # ── Secondary color (2nd largest cluster, if distinct enough) ──
-        self._last_secondary_color: Optional[str] = None
-        self._last_shoe_subtype: str = "Shoes"
+        self._last_secondary_color = None
         if SKLEARN_AVAILABLE:
             try:
                 counts_sorted = np.argsort(np.bincount(km.labels_))[::-1]

@@ -8,7 +8,7 @@ A full-stack AI-powered fashion web app that helps users discover, analyze, and 
 
 | Service | URL |
 |---|---|
-| Frontend | https://d1yc69o122s878.cloudfront.net |
+| Frontend |http://wya-whats-your-aesthetic.s3-website.ap-south-1.amazonaws.com/ |
 | Backend API | http://13.201.121.83:8000 |
 
 ---

@@ -174,12 +174,13 @@ const Closet: React.FC = () => {
         const base64 = reader.result as string;
         setImagePreview(base64);
         setAnalyzing(true);
-        // ── Step 1: Local analysis (non-blocking) ────────────────────────────────────
-        let local: any = null;
         try {
-          local = await analyzeImageLocally(base64);
+          const local = await analyzeImageLocally(base64);
           setLocalAnalysis(local);
-          if (local?.guessCategory) {
+
+          // ── Pre-fill category instantly from client-side shape analysis ──
+          // This runs before the backend responds so the user sees a result right away.
+          if (local.guessCategory) {
             const displayCategory = local.shoeSubtype || local.guessCategory;
             setNewItem(prev => ({
               ...prev,
@@ -187,27 +188,23 @@ const Closet: React.FC = () => {
               name: prev.name || displayCategory,
             }));
           }
-        } catch (localErr) {
-          console.warn('Local analysis failed (non-fatal):', localErr);
-        }
 
-        // ── Step 2: Backend SageMaker scan (always runs) ─────────────────────
-        try {
           const analysis = await api.wardrobe.scanFabric(base64);
           if (analysis && analysis.success) {
+            // Backend result wins — but keep local shoe subtype if backend just says "Shoes"
             const finalCategory =
-              analysis.category === 'Shoes' && local?.shoeSubtype
-                ? local.shoeSubtype
+              analysis.category === 'Shoes' && local.shoeSubtype
+                ? local.shoeSubtype   // use fine-grained local subtype
                 : analysis.category;
             setNewItem({
               name: analysis.name,
               category: finalCategory,
-              color: local?.shadeNames?.[0] || analysis.color,
-              fabric: analysis.fabric,
+              color: local.shadeNames[0] || analysis.color,
+              fabric: analysis.fabric
             });
           }
-        } catch (backendErr) {
-          console.error('Backend autotag failed:', backendErr);
+        } catch (err) {
+          console.error('Backend Autotagging failed', err);
         } finally {
           setAnalyzing(false);
         }

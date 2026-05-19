@@ -18,21 +18,35 @@
 
 ## Architecture
 
-```
-User (browser / mobile)
-  ↓
-CloudFront CDN  ·  HTTPS · global edge caching
-  ├── /*          →  S3 static frontend  (React + Vite)
-  └── /api/*      →  EC2 FastAPI backend  (Docker · port 8000)
-                          ↓
-                  AWS SageMaker endpoint
-                  wya-fashionclip-serverless · ml.m5.xlarge
-                          ↓
-                  FashionCLIP (patrickjohncyh/fashion-clip)
-                  zero-shot image classification
+```mermaid
+flowchart TD
+    A["🌐 Browser / Mobile\nUser"]:::gray
+
+    B["⚡ CloudFront CDN\nHTTPS · global edge caching · /* and /api/* routing"]:::purple
+
+    C["🗂️ S3 Static Frontend\nReact + Vite · TypeScript"]:::teal
+
+    D["🖥️ EC2 FastAPI Backend\nDocker · port 8000 · ap-south-1"]:::blue
+
+    E["🤖 AWS SageMaker\nwya-fashionclip-serverless · ml.m5.xlarge"]:::amber
+
+    F["👗 FashionCLIP\nzero-shot image classification"]:::coral
+
+    A --> B
+    B -->|"/*"| C
+    B -->|"/api/*"| D
+    D --> E
+    E --> F
+
+    classDef gray   fill:#e8e6e1,stroke:#9c9a92,color:#2C2C2A
+    classDef purple fill:#EEEDFE,stroke:#534AB7,color:#3C3489
+    classDef teal   fill:#E1F5EE,stroke:#0F6E56,color:#085041
+    classDef blue   fill:#E6F1FB,stroke:#185FA5,color:#0C447C
+    classDef amber  fill:#FAEEDA,stroke:#854F0B,color:#633806
+    classDef coral  fill:#FAECE7,stroke:#993C1D,color:#712B13
 ```
 
-**Deployment:**
+**Deployment**
 - Frontend → S3 + CloudFront (HTTPS, CDN cached, global)
 - Backend → Docker on EC2 `c7i-flex.large` (ap-south-1), Elastic IP `65.1.104.57`
 - CI/CD → GitHub Actions (push to `main` → auto build + deploy + CloudFront invalidation)
@@ -85,14 +99,28 @@ Zero-shot classification with candidate labels. EC2 authenticates via IAM instan
 **Tier 2 — Rule-based fabric classifier**
 Runs locally on the EC2 container using `category × color × texture × pattern` rules — no additional ML inference needed.
 
-```
-Image upload
-  ↓
-SageMaker reachable? ── YES ──→ FashionCLIP zero-shot → category
-  │                                                          ↓
-  NO                                             Fabric classifier (local rules)
-  ↓                                                          ↓
-Fallback: category = "Top" ───────────────────→ Smart name generated
+```mermaid
+flowchart TD
+    A["📤 Image upload"]:::gray
+    B{"SageMaker reachable?"}:::purple
+    C["FashionCLIP zero-shot\n→ category"]:::blue
+    D["Fallback: category = Top"]:::coral
+    E["Fabric classifier\nlocal rules"]:::teal
+    F["✅ Smart name generated"]:::amber
+
+    A --> B
+    B -->|YES| C
+    B -->|NO| D
+    C --> E
+    D --> E
+    E --> F
+
+    classDef gray   fill:#e8e6e1,stroke:#9c9a92,color:#2C2C2A
+    classDef purple fill:#EEEDFE,stroke:#534AB7,color:#3C3489
+    classDef blue   fill:#E6F1FB,stroke:#185FA5,color:#0C447C
+    classDef teal   fill:#E1F5EE,stroke:#0F6E56,color:#085041
+    classDef coral  fill:#FAECE7,stroke:#993C1D,color:#712B13
+    classDef amber  fill:#FAEEDA,stroke:#854F0B,color:#633806
 ```
 
 ---
@@ -229,6 +257,8 @@ sudo docker run -d \
 # Logs
 sudo docker logs wya -f
 ```
+
+---
 
 ## CI/CD (GitHub Actions)
 

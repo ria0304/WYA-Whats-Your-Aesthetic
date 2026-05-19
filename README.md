@@ -12,29 +12,6 @@
 
 🔗 **Live:** [dsbml6kwxecah.cloudfront.net](https://dsbml6kwxecah.cloudfront.net)
 
-</div>
-
----
-
-## Screenshots
-
-<table>
-  <tr>
-    <td align="center"><b>Login</b></td>
-    <td align="center"><b>Dashboard</b></td>
-  </tr>
-  <tr>
-    <td><img src="screenshot-login.png" width="400"/></td>
-    <td><img src="screenshot-dashboard.png" width="400"/></td>
-  </tr>
-  <tr>
-    <td align="center"><b>My Wardrobe</b></td>
-    <td align="center"><b>AI Auto-Tagging</b></td>
-  </tr>
-  <tr>
-    <td><img src="screenshot-wardrobe.png" width="400"/></td>
-    <td><img src="screenshot-autotag.png" width="400"/></td>
-  </tr>
 </table>
 
 ---

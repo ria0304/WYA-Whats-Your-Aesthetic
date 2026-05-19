@@ -1,151 +1,169 @@
-# WYA – What's Your Aesthetic
+<div align="center">
 
-A full-stack AI-powered fashion web app that helps users discover, analyze, and refine their personal style. WYA combines computer vision, style profiling, and wardrobe intelligence to deliver personalized aesthetic insights.
+<img src="https://img.shields.io/badge/React-TypeScript-blue?style=flat-square&logo=react" />
+<img src="https://img.shields.io/badge/FastAPI-Python-green?style=flat-square&logo=fastapi" />
+<img src="https://img.shields.io/badge/AWS-CloudFront%20%2B%20S3%20%2B%20EC2-orange?style=flat-square&logo=amazonaws" />
+<img src="https://img.shields.io/badge/AI-FashionCLIP%20%2B%20SageMaker-purple?style=flat-square" />
+<img src="https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-black?style=flat-square&logo=githubactions" />
 
-![CI/CD](https://github.com/ria0304/WYA-Whats-Your-Aesthetic/actions/workflows/deploy.yml/badge.svg)
+# WYA — What's Your Aesthetic
+
+**An AI-powered full-stack fashion web app** that helps users discover, analyze, and refine their personal style through computer vision, style profiling, and wardrobe intelligence.
+
+🔗 **Live:** [dsbml6kwxecah.cloudfront.net](https://dsbml6kwxecah.cloudfront.net)
+
+</div>
 
 ---
 
-## 🔗 Live Deployment
+## Screenshots
 
-| Service | URL |
-|---|---|
-| Frontend | http://wya-whats-your-aesthetic.s3-website.ap-south-1.amazonaws.com/ |
-| Backend API | http://13.201.121.83:8000 |
+<table>
+  <tr>
+    <td align="center"><b>Login</b></td>
+    <td align="center"><b>Dashboard</b></td>
+  </tr>
+  <tr>
+    <td><img src="screenshot-login.png" width="400"/></td>
+    <td><img src="screenshot-dashboard.png" width="400"/></td>
+  </tr>
+  <tr>
+    <td align="center"><b>My Wardrobe</b></td>
+    <td align="center"><b>AI Auto-Tagging</b></td>
+  </tr>
+  <tr>
+    <td><img src="screenshot-wardrobe.png" width="400"/></td>
+    <td><img src="screenshot-autotag.png" width="400"/></td>
+  </tr>
+</table>
 
 ---
 
-## 🏗️ Architecture
+## Architecture
 
 ```
 User (browser / mobile)
   ↓
-CloudFront + S3  ·  CDN + static hosting (ap-south-1)
-  ↓
-React + TypeScript frontend  ·  Vite — quiz, closet, matcher, weather
-  ↓
-FastAPI backend  ·  Docker on EC2 t2.micro · SQLite · rembg · OpenCV
-  ↓
-AWS SageMaker endpoint  ·  wya-fashionclip-serverless · ml.m5.xlarge
-  ↓
-FashionCLIP (patrickjohncyh/fashion-clip)  ·  zero-shot image classification
+CloudFront CDN  ·  HTTPS · global edge caching
+  ├── /*          →  S3 static frontend  (React + Vite)
+  └── /api/*      →  EC2 FastAPI backend  (Docker · port 8000)
+                          ↓
+                  AWS SageMaker endpoint
+                  wya-fashionclip-serverless · ml.m5.xlarge
+                          ↓
+                  FashionCLIP (patrickjohncyh/fashion-clip)
+                  zero-shot image classification
 ```
+
+**Deployment:**
+- Frontend → S3 + CloudFront (HTTPS, CDN cached, global)
+- Backend → Docker on EC2 `c7i-flex.large` (ap-south-1), Elastic IP `65.1.104.57`
+- CI/CD → GitHub Actions (push to `main` → auto build + deploy + CloudFront invalidation)
 
 ---
 
-## ✨ Features
+## Features
 
 | Feature | Description |
 |---|---|
-| Style Quiz | Interactive questionnaire that maps your aesthetic DNA |
-| Wardrobe / Closet | Upload garments with AI auto-tagging (category, color, fabric, pattern) |
-| AI Outfit Matcher | Outfit suggestions based on color harmony and your style profile |
-| Style Evolution | Track how your style changes over time |
-| Green Score | Sustainability rating for your wardrobe |
-| Aesthetic Aura | Shareable style card generated from your wardrobe |
-| Vacation Shop / Curate | Trip and weather-based outfit curation |
-| Weather Styling | Outfit recommendations based on real-time weather |
-| Background Removal | Clean garment images automatically via rembg |
-| Push Notifications | Style alerts and reminders via VAPID |
+| 🧬 Style DNA Quiz | Interactive questionnaire that maps your personal aesthetic |
+| 👗 Wardrobe / Closet | Upload garments with AI auto-tagging (category, color, fabric, pattern) |
+| 🤖 AI Outfit Matcher | Outfit suggestions based on color harmony and your style profile |
+| 📈 Style Evolution | Track how your aesthetic changes over time |
+| 🌿 Green Score | Sustainability rating for your wardrobe |
+| ✨ Aesthetic Aura | Shareable style card generated from your wardrobe |
+| ✈️ Vacation Packer | Trip and weather-based outfit curation |
+| 🌤️ Weather Styling | Real-time weather-based outfit recommendations |
+| 🪄 Background Removal | Clean garment images automatically via `rembg` |
+| 🔔 Push Notifications | Style alerts and reminders via VAPID |
 
 ---
 
-## 🤖 AI Pipeline
+## AI Pipeline
 
 ```
-Image decode + background removal (rembg + OpenCV)
+Image upload
   ↓
-Garment mask extraction (GrabCut / Otsu thresholding)
+Background removal  (rembg + OpenCV)
   ↓
-Garment crop + zoom (removes background noise before classification)
+Garment mask extraction  (GrabCut / Otsu thresholding)
   ↓
-✅  Zero-shot classification via AWS SageMaker (FashionCLIP on ml.m5.xlarge)
+Garment crop + zoom  (removes background noise pre-classification)
   ↓
-✅  Dominant color extraction via KMeans clustering (sklearn)
-  ↓
-✅  Secondary color detection (largest non-dominant cluster)
-  ↓
-✅  Texture variance + brightness analysis (OpenCV)
-  ↓
-✅  Pattern detection — striped / floral / geometric / solid (Sobel + Canny)
-  ↓
-✅  Fabric inference via rule-based classifier (category × color × texture × pattern)
-  ↓
-✅  Smart name generation — e.g. "Floral Chiffon Midi Dress", "Washed Indigo Jeans"
-  ↓
-✅  Style profile vectorization + outfit similarity matching
+✅ Zero-shot classification  →  AWS SageMaker (FashionCLIP)
+✅ Dominant color extraction  →  KMeans clustering (sklearn)
+✅ Secondary color detection  →  largest non-dominant cluster
+✅ Texture + brightness analysis  →  OpenCV
+✅ Pattern detection  →  striped / floral / geometric / solid (Sobel + Canny)
+✅ Fabric inference  →  rule-based classifier (category × color × texture × pattern)
+✅ Smart name generation  →  e.g. "Floral Chiffon Midi Dress", "Washed Indigo Jeans"
+✅ Style profile vectorization + outfit similarity matching
 ```
 
----
-
-## 🧭 Garment Auto-Tagging Architecture
-
-Auto-tagging runs a two-tier pipeline:
+### Garment Auto-Tagging — Two-Tier Architecture
 
 **Tier 1 — AWS SageMaker (FashionCLIP)**
 Zero-shot classification with candidate labels. EC2 authenticates via IAM instance profile (no API keys). Returns category (e.g. Dress, Jeans, Watch).
 
 **Tier 2 — Rule-based fabric classifier**
-Runs locally on the EC2 container using category × color × texture × pattern rules — no additional ML inference needed.
+Runs locally on the EC2 container using `category × color × texture × pattern` rules — no additional ML inference needed.
 
 ```
 Image upload
   ↓
-SageMaker reachable? ─── YES ──→ FashionCLIP zero-shot → category (Dress, Jeans…)
-  │                                                              ↓
-  NO                                                  Fabric classifier (local rules)
-  ↓                                                              ↓
-Fallback: category = "Top" ─────────────────────────→ Smart name generated
+SageMaker reachable? ── YES ──→ FashionCLIP zero-shot → category
+  │                                                          ↓
+  NO                                             Fabric classifier (local rules)
+  ↓                                                          ↓
+Fallback: category = "Top" ───────────────────→ Smart name generated
 ```
 
 ---
 
-## 🚦 Deployment Status
+## Tech Stack
+
+**Frontend**
+- React + TypeScript + Vite
+- Deployed on AWS S3 + CloudFront (HTTPS)
+
+**Backend**
+- FastAPI (Python)
+- SQLite via SQLAlchemy (persisted at `/app/data/wya.db` via Docker volume)
+- OpenCV + Pillow + `rembg` for computer vision
+- scikit-learn for KMeans color clustering
+- AWS SageMaker for garment classification (FashionCLIP)
+- Dockerized, deployed on AWS EC2 (ap-south-1)
+
+**AWS Infrastructure**
+- EC2 `c7i-flex.large` (ap-south-1) — Docker backend, Elastic IP `65.1.104.57`
+- S3 + CloudFront — static frontend with HTTPS and CDN caching
+- CloudFront `/api/*` behavior — routes backend traffic through HTTPS (no mixed content)
+- SageMaker endpoint `wya-fashionclip-serverless` on `ml.m5.xlarge` — InService
+- IAM role `wya-sagemaker-role` via EC2 instance profile — no API keys needed
+
+---
+
+## Deployment Status
 
 | Component | Status |
 |---|---|
 | Frontend (S3 + CloudFront) | ✅ Live |
 | Backend (Docker on EC2) | ✅ Live |
+| Elastic IP (fixed, survives reboots) | ✅ `65.1.104.57` |
+| HTTPS end-to-end (no mixed content) | ✅ Via CloudFront |
 | Database (SQLite, persistent volume) | ✅ Live |
 | SageMaker FashionCLIP endpoint | ✅ InService |
-| CI/CD (GitHub Actions) | ✅ Live |
-| Garment auto-tagging (category) | ✅ Working |
+| CI/CD (GitHub Actions) | ✅ Auto-deploy on push |
+| Garment auto-tagging | ✅ Working |
 | Color detection (KMeans) | ✅ Working |
-| Fabric classifier | ✅ Working |
 | Background removal | ✅ Working |
-| Login / wardrobe / style DNA | ✅ Working |
-| Outfit matcher | ✅ Working |
-| Weather styling | ✅ Working |
-| Green score | ✅ Working |
-| Aesthetic aura | ✅ Working |
+| Login / Wardrobe / Style DNA | ✅ Working |
+| Outfit Matcher | ✅ Working |
+| Weather Styling | ✅ Working |
 
 ---
 
-## 🛠️ Tech Stack
-
-### Frontend
-- React + TypeScript
-- Vite
-- Deployed on AWS S3 + CloudFront
-
-### Backend
-- FastAPI (Python)
-- SQLite via SQLAlchemy (persisted at `/app/data/wya.db` via Docker volume)
-- OpenCV + Pillow + rembg for computer vision
-- scikit-learn for KMeans color clustering
-- AWS SageMaker for garment classification (FashionCLIP)
-- Dockerized and deployed on AWS EC2 (ap-south-1)
-
-### AWS Infrastructure
-- EC2 `i-0ee2cb7f52191f766` (t2.micro, ap-south-1) — runs Docker backend
-- S3 bucket `wya-whats-your-aesthetic` + CloudFront — static frontend
-- SageMaker endpoint `wya-fashionclip-serverless` on `ml.m5.xlarge` — InService
-- IAM role `wya-sagemaker-role` attached via EC2 instance profile — no API keys needed
-- SQLite DB persisted at `/home/ubuntu/wya-data/wya.db` via Docker volume mount
-
----
-
-## 📁 Project Structure
+## Project Structure
 
 ```
 WYA-Whats-Your-Aesthetic/
@@ -159,62 +177,44 @@ WYA-Whats-Your-Aesthetic/
 │   ├── GreenScore.tsx
 │   ├── AestheticAura.tsx
 │   ├── VacationShop.tsx
-│   ├── Curate.tsx
-│   ├── Weather.tsx
-│   ├── TheArchive.tsx
-│   ├── ScanLook.tsx
 │   └── Profile.tsx
 │
 ├── routers/                    # FastAPI route modules
-│   ├── auth_router.py          # /api/auth — login, register
-│   ├── wardrobe_router.py      # /api/wardrobe — CRUD, remove-bg, archive
-│   ├── outfit_router.py        # /api/outfits — save, wear tracking, history
-│   ├── ai_router.py            # /api/ai — fabric-scan, outfit-match, weather, gap
-│   ├── style_router.py         # /api/style — DNA, aura, evolution, dashboard
-│   └── user_router.py          # /api/user — profile, preferences, notifications
+│   ├── auth_router.py          # /api/auth
+│   ├── wardrobe_router.py      # /api/wardrobe
+│   ├── outfit_router.py        # /api/outfits
+│   ├── ai_router.py            # /api/ai
+│   ├── style_router.py         # /api/style
+│   └── user_router.py          # /api/user
 │
 ├── services/                   # Backend service modules
-│   ├── computer_vision.py      # Garment detection, masking, color, pattern
-│   ├── fabric_classifier.py    # Rule-based fabric inference engine
-│   ├── color_matcher.py        # Color harmony engine
-│   ├── outfit_generator.py     # Outfit + gap analysis
-│   ├── style_profile.py        # Style DNA extraction
-│   ├── gap_analyzer.py         # Wardrobe gap detection
-│   ├── brand_auditor.py        # Brand sustainability scoring
-│   ├── weather_service.py      # Real-time weather + outfit pairing
-│   ├── trip_curator.py         # Vacation packing curation
-│   ├── email_service.py
-│   └── notification_service.py
+│   ├── computer_vision.py
+│   ├── fabric_classifier.py
+│   ├── color_matcher.py
+│   ├── outfit_generator.py
+│   ├── style_profile.py
+│   └── weather_service.py
 │
-├── ai_model.py                 # AI orchestrator (autotag, suggestions, aura)
-├── ai_matcher.py               # Advanced similarity matching engine
-├── main.py                     # FastAPI app entry point + router registration
-├── database.py                 # SQLite models + SQLAlchemy setup
-├── auth_utils.py               # JWT authentication
-├── schemas.py                  # Pydantic request/response schemas
-├── Dockerfile                  # Docker image for backend
-├── deploy_fashionclip.py       # SageMaker endpoint deployment script
-├── Test_sagemaker.py           # SageMaker connectivity diagnostic script
-├── requirements.txt
-├── .env
-└── README.md
+├── ai_model.py                 # AI orchestrator
+├── main.py                     # FastAPI entry point
+├── database.py                 # SQLite + SQLAlchemy
+├── Dockerfile
+└── .github/workflows/deploy.yml
 ```
 
 ---
 
-## 🚀 Run Locally
+## Run Locally
 
-### Prerequisites
-- Node.js 18+
-- Python 3.10+
+**Prerequisites:** Node.js 18+, Python 3.10+
 
-### Frontend Setup
+**Frontend**
 ```bash
 npm install
 npm run dev
 ```
 
-### Backend Setup
+**Backend**
 ```bash
 pip install -r requirements.txt
 cp env.example .env
@@ -222,27 +222,23 @@ cp env.example .env
 uvicorn main:app --reload
 ```
 
-### Environment Variables
+**Environment Variables**
 
 | Variable | Description |
 |---|---|
 | `SECRET_KEY` | JWT secret |
-| `SAGEMAKER_ENDPOINT` | SageMaker endpoint name (default: `wya-fashionclip-serverless`) |
+| `SAGEMAKER_ENDPOINT` | SageMaker endpoint name |
 | `AWS_REGION` | AWS region (default: `ap-south-1`) |
 | `WYA_VAPID_PRIVATE_KEY` | Push notification private key |
 | `WYA_VAPID_PUBLIC_KEY` | Push notification public key |
 
 ---
 
-## 🐳 Deployment
-
-### Backend (Docker on EC2)
+## Docker Deployment (EC2)
 
 ```bash
-# Build image
+# Build and run
 sudo docker build -t wya-backend .
-
-# Run container with persistent DB volume
 sudo docker run -d \
   --name wya \
   --restart unless-stopped \
@@ -253,52 +249,12 @@ sudo docker run -d \
   -v /home/ubuntu/wya-data:/app/data \
   wya-backend
 
-# View logs
+# Logs
 sudo docker logs wya -f
-
-# Rebuild after code changes
-sudo docker stop wya && sudo docker rm wya
-sudo docker build -t wya-backend .
-sudo docker run -d --name wya --restart unless-stopped \
-  -p 8000:8000 --env-file .env \
-  -e SAGEMAKER_ENDPOINT=wya-fashionclip-serverless \
-  -e AWS_REGION=ap-south-1 \
-  -v /home/ubuntu/wya-data:/app/data \
-  wya-backend
-
-# Free disk space if build fails (t2.micro fills up fast)
-sudo docker system prune -a -f
 ```
 
-### Frontend (S3 + CloudFront)
-
-```bash
-npm run build
-aws s3 sync dist/ s3://wya-whats-your-aesthetic --delete
-```
-
-### CI/CD (GitHub Actions)
+## CI/CD (GitHub Actions)
 
 Push to `main` automatically triggers:
-1. **deploy-backend** — SSH into EC2, rebuild Docker image, restart container (~2m 30s)
-2. **deploy-frontend** — `npm run build` + sync to S3 (~30s)
-
-Workflow file: `.github/workflows/deploy.yml`
-
-### SageMaker Endpoint
-
-```bash
-source venv/bin/activate
-python3 deploy_fashionclip.py
-```
-
-### Diagnose SageMaker Connectivity
-
-```bash
-# Run on EC2 to verify credentials + endpoint + invocation
-pip3 install boto3 pillow --break-system-packages
-python3 Test_sagemaker.py
-
-# Test with a real garment image
-python3 Test_sagemaker.py /path/to/garment.jpg
-```
+- `deploy-backend` — SSH into EC2, rebuild Docker image, restart container (~2m 30s)
+- `deploy-frontend` — `npm run build` → S3 sync → CloudFront invalidation (~30s)

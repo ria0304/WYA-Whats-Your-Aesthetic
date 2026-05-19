@@ -1,6 +1,8 @@
 # WYA – What's Your Aesthetic
 
-A full-stack AI-powered fashion web app that helps users discover, analyze, and refine their personal style. WYA combines computer vision, style profiling, and wardrobe intelligence to deliver personalized aesthetic insights
+A full-stack AI-powered fashion web app that helps users discover, analyze, and refine their personal style. WYA combines computer vision, style profiling, and wardrobe intelligence to deliver personalized aesthetic insights.
+
+![CI/CD](https://github.com/ria0304/WYA-Whats-Your-Aesthetic/actions/workflows/deploy.yml/badge.svg)
 
 ---
 
@@ -8,7 +10,7 @@ A full-stack AI-powered fashion web app that helps users discover, analyze, and 
 
 | Service | URL |
 |---|---|
-| Frontend |http://wya-whats-your-aesthetic.s3-website.ap-south-1.amazonaws.com/ |
+| Frontend | http://wya-whats-your-aesthetic.s3-website.ap-south-1.amazonaws.com/ |
 | Backend API | http://13.201.121.83:8000 |
 
 ---
@@ -34,7 +36,7 @@ FashionCLIP (patrickjohncyh/fashion-clip) — zero-shot image classification
 ## Features
 
 - **Style Quiz** — Interactive questionnaire that maps your aesthetic DNA
-- **Wardrobe / Closet** — Upload garments with AI auto-tagging (category, color, fabric, pattern)
+- **Wardrobe / Closet** — Upload garments with color detection; AI auto-tagging for category and fabric in progress
 - **AI Outfit Matcher** — Get outfit suggestions based on color harmony and your style profile
 - **Style Evolution** — Track how your style changes over time
 - **Green Score** — Sustainability rating for your wardrobe
@@ -51,12 +53,12 @@ FashionCLIP (patrickjohncyh/fashion-clip) — zero-shot image classification
 1. Image decode and background removal (rembg + OpenCV)
 2. Garment mask extraction (GrabCut / Otsu thresholding)
 3. Garment crop and zoom (removes background noise before classification)
-4. Zero-shot classification via AWS SageMaker (FashionCLIP on ml.m5.xlarge)
-5. Dominant color extraction via KMeans clustering (sklearn)
-6. Secondary color detection (largest non-dominant cluster)
-7. Texture variance + brightness analysis (OpenCV)
-8. Pattern detection — striped / floral / geometric / solid (Sobel + Canny)
-9. Fabric inference via rule-based classifier (category × color × texture × pattern)
+4. ⚠️ Zero-shot classification via AWS SageMaker (FashionCLIP on ml.m5.xlarge) — works locally, broken on EC2 (IAM/memory/dependency issue under investigation)
+5. ✅ Dominant color extraction via KMeans clustering (sklearn)
+6. ✅ Secondary color detection (largest non-dominant cluster)
+7. ✅ Texture variance + brightness analysis (OpenCV)
+8. ✅ Pattern detection — striped / floral / geometric / solid (Sobel + Canny)
+9. ⚠️ Fabric inference via rule-based classifier (category × color × texture × pattern) — works locally, broken on EC2
 10. Smart name generation — e.g. "Floral Chiffon Midi Dress", "Washed Indigo Jeans"
 11. Style profile vectorization and outfit similarity matching
 
@@ -168,10 +170,10 @@ See `env.example` for all required variables:
 
 Autotag runs a two-tier pipeline:
 
-1. **AWS SageMaker** — FashionCLIP zero-shot classification with candidate labels. EC2 authenticates via IAM instance profile (no API keys). Returns category (e.g. Dress, Jeans, Watch).
+1. **AWS SageMaker** — FashionCLIP zero-shot classification with candidate labels. EC2 authenticates via IAM instance profile (no API keys). Returns category (e.g. Dress, Jeans, Watch). ⚠️ Works locally, broken on EC2 — likely IAM/memory/missing system dependency inside Docker.
 2. **Default fallback** — Returns `"Top"` if SageMaker is unreachable.
 
-The fabric classifier then runs locally on the EC2 container using category × color × texture × pattern rules — no additional ML inference needed.
+The fabric classifier then runs locally on the EC2 container using category × color × texture × pattern rules — no additional ML inference needed. ⚠️ Works locally, broken on EC2 (depends on SageMaker category output).
 
 ---
 
@@ -183,9 +185,10 @@ The fabric classifier then runs locally on the EC2 container using category × c
 | Backend (Docker on EC2) | ✅ Live |
 | Database (SQLite, persistent volume) | ✅ Live |
 | SageMaker FashionCLIP endpoint | ✅ InService |
-| Garment auto-tagging (category) |  not Working |
+| CI/CD (GitHub Actions) | ✅ Live |
+| Garment auto-tagging (category) | ⚠️ Works locally, broken on EC2 |
 | Color detection (KMeans) | ✅ Working |
-| Fabric classifier |  not Working |
+| Fabric classifier | ⚠️ Works locally, broken on EC2 |
 | Background removal | ✅ Working |
 | Login / wardrobe / style DNA | ✅ Working |
 | Outfit matcher | ✅ Working |
@@ -237,6 +240,14 @@ sudo docker system prune -a -f
 npm run build
 aws s3 sync dist/ s3://wya-whats-your-aesthetic --delete
 ```
+
+### CI/CD (GitHub Actions)
+
+Push to `main` automatically:
+1. **deploy-backend** — SSH into EC2, rebuild Docker image, restart container (≈2m 30s)
+2. **deploy-frontend** — `npm run build` + sync to S3 (≈30s)
+
+Workflow file: `.github/workflows/deploy.yml`
 
 ### SageMaker Endpoint
 

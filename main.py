@@ -21,14 +21,18 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
+        # Local development
         "http://localhost:3000",
         "http://127.0.0.1:3000",
         "http://localhost:5173",
         "http://127.0.0.1:5173",
         "http://localhost:8080",
         "http://127.0.0.1:8080",
-        "https://d1yc69o122s878.cloudfront.net",
+        # S3 frontend
         "http://wya-whats-your-aesthetic.s3-website.ap-south-1.amazonaws.com",
+        # CloudFront frontend (current)
+        "https://dsbml6kwxecah.cloudfront.net",
+        # EC2 backend direct
         "http://3.110.159.133:8080",
     ],
     allow_credentials=True,

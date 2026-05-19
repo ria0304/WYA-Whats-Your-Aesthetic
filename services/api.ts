@@ -2,11 +2,11 @@ const getBaseUrl = () => {
   if (typeof window !== 'undefined') {
     const { hostname } = window.location;
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return `http://${hostname}:8000`;
+      return `http://${hostname}:8080`;
     }
-    return 'http://13.201.121.83:8000';
+    return 'http://3.110.159.133:8080';
   }
-  return 'http://localhost:8000';
+  return 'http://localhost:8080';
 };
 
 const BASE_URL = getBaseUrl();

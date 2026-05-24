@@ -5,6 +5,8 @@
 <img src="https://img.shields.io/badge/AWS-CloudFront%20%2B%20S3%20%2B%20EC2-orange?style=flat-square&logo=amazonaws" />
 <img src="https://img.shields.io/badge/AI-FashionCLIP%20%2B%20SageMaker-purple?style=flat-square" />
 <img src="https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-black?style=flat-square&logo=githubactions" />
+<img src="https://img.shields.io/badge/Rate%20Limiting-slowapi-teal?style=flat-square" />
+<img src="https://img.shields.io/badge/Tests-pytest-yellow?style=flat-square&logo=pytest" />
 
 ![CI/CD](https://github.com/ria0304/WYA-Whats-Your-Aesthetic/actions/workflows/deploy.yml/badge.svg)
 
@@ -138,9 +140,10 @@ flowchart TD
 
 **Backend**
 - FastAPI (Python)
-- SQLite via SQLAlchemy (persisted at `/app/data/wya.db` via Docker volume)
+- SQLite (persisted at `/app/data/wya.db` via Docker volume)
 - OpenCV + Pillow + `rembg` for computer vision
 - scikit-learn for KMeans color clustering
+- slowapi for per-route rate limiting on AI endpoints
 - AWS SageMaker for garment classification (FashionCLIP)
 - Dockerized, deployed on AWS EC2 (ap-south-1)
 
@@ -150,6 +153,22 @@ flowchart TD
 - CloudFront `/api/*` behavior — routes backend traffic through HTTPS (no mixed content)
 - SageMaker endpoint `wya-fashionclip-serverless` on `ml.m5.xlarge` — InService
 - IAM role `wya-sagemaker-role` via EC2 instance profile — no API keys needed
+
+---
+
+## Rate Limiting
+
+AI endpoints are protected with [slowapi](https://github.com/laurentS/slowapi) to prevent abuse and control SageMaker inference costs.
+
+| Endpoint | Limit |
+|---|---|
+| `POST /api/ai/fabric-scan` | 10 / minute |
+| `POST /api/ai/outfit-match` | 10 / minute |
+| `POST /api/ai/curate-outfits` | 10 / minute |
+| `POST /api/ai/gap-analysis` | 10 / minute |
+| `POST /api/ai/green-audit` | 20 / minute |
+
+Standard CRUD endpoints (`/api/wardrobe`, `/api/auth`, `/api/outfits`, etc.) are not rate limited.
 
 ---
 
@@ -164,6 +183,10 @@ flowchart TD
 | Database (SQLite, persistent volume) | ✅ Live |
 | SageMaker FashionCLIP endpoint | ✅ InService |
 | CI/CD (GitHub Actions) | ✅ Auto-deploy on push |
+| Rate limiting (slowapi) | ✅ AI endpoints protected |
+| Health checks (`/health`, `/health/ready`) | ✅ Live |
+| Automated daily backups (S3) | ✅ Running via cron |
+| Server watchdog (auto-recovery) | ✅ Running via systemd |
 | Garment auto-tagging (category) | ✅ Working |
 | Color detection (KMeans) | ✅ Working |
 | Fabric classifier | ✅ Working |
@@ -198,7 +221,8 @@ WYA-Whats-Your-Aesthetic/
 │   ├── outfit_router.py        # /api/outfits — save, wear tracking, history
 │   ├── ai_router.py            # /api/ai — fabric-scan, outfit-match, weather, gap
 │   ├── style_router.py         # /api/style — DNA, aura, evolution, dashboard
-│   └── user_router.py          # /api/user — profile, preferences, notifications
+│   ├── user_router.py          # /api/user — profile, preferences, notifications
+│   └── health_router.py        # /api/health — liveness, readiness, build info
 │
 ├── services/                   # Backend service modules
 │   ├── computer_vision.py      # Garment detection, masking, color, pattern
@@ -213,17 +237,49 @@ WYA-Whats-Your-Aesthetic/
 │   ├── email_service.py
 │   └── notification_service.py
 │
+├── tests/                      # Pytest test suite
+│   ├── __init__.py
+│   ├── conftest.py             # Shared fixtures, temp DB, test client
+│   ├── test_auth.py            # Auth tests (15 tests)
+│   ├── test_wardrobe.py        # Wardrobe CRUD tests (12 tests)
+│   ├── test_health.py          # Health endpoint tests (10 tests)
+│   └── test_outfits.py         # Outfit + rate limiting tests (10 tests)
+│
 ├── ai_model.py                 # AI orchestrator (autotag, suggestions, aura)
 ├── ai_matcher.py               # Advanced similarity matching engine
 ├── logger.py                   # Centralised logging config
 ├── main.py                     # FastAPI entry point + router registration
-├── database.py                 # SQLite models + SQLAlchemy setup
+├── rate_limiter.py             # slowapi limiter instance + shared rate limit config
+├── database.py                 # SQLite schema + helpers
 ├── auth_utils.py               # JWT authentication
 ├── schemas.py                  # Pydantic request/response schemas
+├── backup.py                   # Automatic daily S3 backup (cron job on EC2)
+├── watchdog.py                 # Server watchdog — restarts container if unresponsive
 ├── Dockerfile                  # Docker image for backend
+├── pytest.ini                  # Pytest configuration
 ├── .dockerignore
 └── .github/workflows/deploy.yml
 ```
+
+---
+
+## Testing
+
+**47 tests** covering auth, wardrobe CRUD, health endpoints, outfit generation, and AI rate limiting.
+
+```bash
+pip install pytest httpx
+pytest
+```
+
+| File | Tests | Coverage |
+|---|---|---|
+| `test_auth.py` | 15 | Register, login, duplicates, missing fields, token validation |
+| `test_wardrobe.py` | 12 | CRUD, auth enforcement, cross-user isolation |
+| `test_health.py` | 10 | Liveness, readiness, DB check, build info |
+| `test_outfits.py` | 10 | Outfit CRUD, rate limit enforcement (429) |
+
+Tests use a temporary SQLite database — your real database is never touched.
 
 ---
 

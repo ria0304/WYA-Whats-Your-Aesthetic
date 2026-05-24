@@ -13,6 +13,7 @@ from routers.ai_router import router as ai_router
 from routers.style_router import router as style_router
 from routers.user_router import router as user_router
 from routers.recommend_router import router as recommend_router
+from routers.health_router import router as health_router  
 
 load_dotenv()
 setup_logging()
@@ -76,3 +77,4 @@ app.include_router(ai_router)
 app.include_router(style_router)
 app.include_router(user_router)
 app.include_router(recommend_router)
+app.include_router(health_router)  

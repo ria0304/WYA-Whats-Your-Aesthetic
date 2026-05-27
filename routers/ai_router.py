@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Query, Body
+from fastapi import APIRouter, HTTPException, Depends, Query, Body, Request
 from typing import Dict, Any
 import json
 import logging
@@ -7,13 +7,15 @@ from database import get_db
 from auth_utils import get_current_user, UserProfile
 from ai_model import FashionAIModel
 from schemas import WeatherRequest, GreenAuditRequest
+from rate_limiter import limiter
 
 router = APIRouter(prefix="/api/ai", tags=["ai"])
 logger = logging.getLogger("uvicorn.error")
 
 
 @router.post("/fabric-scan")
-async def fabric_scan(data: Dict[str, Any], user: UserProfile = Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def fabric_scan(request: Request, data: Dict[str, Any], user: UserProfile = Depends(get_current_user)):
     image = data.get('image')
     if not image:
         raise HTTPException(400, "Image required")
@@ -21,7 +23,8 @@ async def fabric_scan(data: Dict[str, Any], user: UserProfile = Depends(get_curr
 
 
 @router.post("/outfit-match")
-async def outfit_match(data: Dict[str, Any], user: UserProfile = Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def outfit_match(request: Request, data: Dict[str, Any], user: UserProfile = Depends(get_current_user)):
     image = data.get('image')
     variation = data.get('variation', 0)
     if not image:
@@ -61,7 +64,9 @@ async def outfit_match(data: Dict[str, Any], user: UserProfile = Depends(get_cur
 
 
 @router.get("/vacation-packer")
+@limiter.limit("10/minute")
 async def vacation_packer(
+    request: Request,
     vacation_type: str = Query("city"),
     duration_days: int = Query(3),
     city: str = Query("Delhi"),
@@ -71,7 +76,8 @@ async def vacation_packer(
 
 
 @router.post("/curate-outfits")
-async def curate_outfits(data: Dict[str, Any] = Body(...), user: UserProfile = Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def curate_outfits(request: Request, data: Dict[str, Any] = Body(...), user: UserProfile = Depends(get_current_user)):
     items = data.get('items', [])
     if not items:
         raise HTTPException(400, "Wardrobe items required")
@@ -79,17 +85,20 @@ async def curate_outfits(data: Dict[str, Any] = Body(...), user: UserProfile = D
 
 
 @router.post("/weather-search")
-async def weather_search(data: WeatherRequest, user: UserProfile = Depends(get_current_user)):
+@limiter.limit("20/minute")
+async def weather_search(request: Request, data: WeatherRequest, user: UserProfile = Depends(get_current_user)):
     return FashionAIModel.weather_styling(data.city)
 
 
 @router.post("/green-audit")
-async def green_audit(data: GreenAuditRequest, user: UserProfile = Depends(get_current_user)):
+@limiter.limit("20/minute")
+async def green_audit(request: Request, data: GreenAuditRequest, user: UserProfile = Depends(get_current_user)):
     return await FashionAIModel.audit_brand(data.brand)
 
 
 @router.post("/gap-analysis")
-async def gap_analysis(data: Dict[str, Any] = Body(default={}), user: UserProfile = Depends(get_current_user)):
+@limiter.limit("10/minute")
+async def gap_analysis(request: Request, data: Dict[str, Any] = Body(default={}), user: UserProfile = Depends(get_current_user)):
     from services.gap_analyzer import gap_analyzer
 
     conn = get_db()

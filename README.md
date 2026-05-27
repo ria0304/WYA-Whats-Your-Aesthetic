@@ -225,61 +225,111 @@ Standard CRUD endpoints (`/api/wardrobe`, `/api/auth`, `/api/outfits`, etc.) are
 ```
 WYA-Whats-Your-Aesthetic/
 │
-├── views/                      # React page components
-│   ├── Closet.tsx              # Wardrobe upload + autotag UI
-│   ├── AIMatcher.tsx           # Outfit suggestion UI
-│   ├── StyleQuiz.tsx           # Aesthetic quiz
+├── views/                        # React page components
+│   ├── AIMatcher.tsx             # Outfit suggestion UI
+│   ├── AestheticAura.tsx         # Shareable style card
+│   ├── Closet.tsx                # Wardrobe upload + autotag UI
+│   ├── Curate.tsx                # Outfit curation view
 │   ├── Dashboard.tsx
-│   ├── Evolution.tsx
-│   ├── GreenScore.tsx
-│   ├── AestheticAura.tsx
-│   ├── VacationShop.tsx
-│   └── Profile.tsx
+│   ├── Evolution.tsx             # Style evolution tracker
+│   ├── GreenScore.tsx            # Sustainability score view
+│   ├── Login.tsx                 # Auth / login page
+│   ├── Profile.tsx
+│   ├── ScanLook.tsx              # Scan & identify a look
+│   ├── StyleQuiz.tsx             # Aesthetic quiz
+│   ├── TheArchive.tsx            # Archived wardrobe items
+│   ├── VacationShop.tsx          # Vacation packer / trip curation
+│   └── Weather.tsx               # Weather-based outfit view
 │
-├── routers/                    # FastAPI route modules
-│   ├── auth_router.py          # /api/auth — login, register
-│   ├── wardrobe_router.py      # /api/wardrobe — CRUD, remove-bg, archive
-│   ├── outfit_router.py        # /api/outfits — save, wear tracking, history
-│   ├── ai_router.py            # /api/ai — fabric-scan, outfit-match, weather, gap
-│   ├── style_router.py         # /api/style — DNA, aura, evolution, dashboard
-│   ├── user_router.py          # /api/user — profile, preferences, notifications
-│   └── health_router.py        # /api/health — liveness, readiness, build info
-│
-├── services/                   # Backend service modules
-│   ├── computer_vision.py      # Garment detection, masking, color, pattern
-│   ├── fabric_classifier.py    # Rule-based fabric inference engine
-│   ├── color_matcher.py        # Color harmony engine
-│   ├── outfit_generator.py     # Outfit + gap analysis
-│   ├── style_profile.py        # Style DNA extraction
-│   ├── gap_analyzer.py         # Wardrobe gap detection
-│   ├── brand_auditor.py        # Brand sustainability scoring
-│   ├── weather_service.py      # Real-time weather + outfit pairing
-│   ├── trip_curator.py         # Vacation packing curation
-│   ├── email_service.py
-│   └── notification_service.py
-│
-├── tests/                      # Pytest test suite
+├── routers/                      # FastAPI route modules
 │   ├── __init__.py
-│   ├── conftest.py             # Shared fixtures, temp DB, test client
-│   ├── test_auth.py            # Auth tests (15 tests)
-│   ├── test_wardrobe.py        # Wardrobe CRUD tests (12 tests)
-│   ├── test_health.py          # Health endpoint tests (10 tests)
-│   └── test_outfits.py         # Outfit + rate limiting tests (10 tests)
+│   ├── Recommend_router.py       # /api/recommend — personalised recommendations
+│   ├── ai_router.py              # /api/ai — fabric-scan, outfit-match, weather, gap
+│   ├── auth_router.py            # /api/auth — login, register
+│   ├── health_router.py          # /api/health — liveness, readiness, build info
+│   ├── outfit_router.py          # /api/outfits — save, wear tracking, history
+│   ├── style_router.py           # /api/style — DNA, aura, evolution, dashboard
+│   ├── user_router.py            # /api/user — profile, preferences, notifications
+│   └── wardrobe_router.py        # /api/wardrobe — CRUD, remove-bg, archive
 │
-├── ai_model.py                 # AI orchestrator (autotag, suggestions, aura)
-├── ai_matcher.py               # Advanced similarity matching engine
-├── logger.py                   # Centralised logging config
-├── main.py                     # FastAPI entry point + router registration
-├── rate_limiter.py             # slowapi limiter instance + shared rate limit config
-├── database.py                 # SQLite schema + helpers
-├── auth_utils.py               # JWT authentication
-├── schemas.py                  # Pydantic request/response schemas
-├── backup.py                   # Automatic daily S3 backup (cron job on EC2)
-├── watchdog.py                 # Server watchdog — restarts container if unresponsive
-├── Dockerfile                  # Docker image for backend
-├── pytest.ini                  # Pytest configuration
+├── services/                     # Backend + frontend service modules
+│   ├── __init__.py
+│   ├── api.ts                    # Frontend API client (TypeScript)
+│   ├── brand_auditor.py          # Brand sustainability scoring
+│   ├── color_matcher.py          # Color harmony engine
+│   ├── computer_vision.py        # Garment detection, masking, color, pattern
+│   ├── data_loader.py            # Data loading + preprocessing helpers
+│   ├── email_service.py
+│   ├── fabric_classifier.py      # Rule-based fabric inference engine
+│   ├── gap_analyzer.py           # Wardrobe gap detection
+│   ├── gemini.ts                 # Gemini AI integration (TypeScript)
+│   ├── localML.ts                # Local ML inference helpers (TypeScript)
+│   ├── notification_service.py
+│   ├── outfit_generator.py       # Outfit + gap analysis
+│   ├── style_profile.py          # Style DNA extraction
+│   ├── trip_curator.py           # Vacation packing curation
+│   └── weather_service.py        # Real-time weather + outfit pairing
+│
+├── tests/                        # Pytest test suite
+│   ├── __init__.py
+│   ├── conftest.py               # Shared fixtures, temp DB, test client
+│   ├── test_auth.py              # Auth tests (15 tests)
+│   ├── test_health.py            # Health endpoint tests (10 tests)
+│   ├── test_outfits.py           # Outfit + rate limiting tests (10 tests)
+│   └── test_wardrobe.py          # Wardrobe CRUD tests (12 tests)
+│
+├── .github/workflows/
+│   └── deploy.yml                # CI/CD — build, deploy, CloudFront invalidation
+│
+├── data/                         # JSON reference data
+│   ├── brand_score.json          # Brand sustainability scores
+│   ├── category_map.json         # Garment category mappings
+│   ├── color_dictionary.json     # Named color reference
+│   ├── color_harmony.json        # Color pairing rules
+│   ├── country_to_region.json    # Country → region lookup
+│   ├── fashion_data.json         # Fashion reference dataset
+│   ├── global_chains.json        # Global fashion chain data
+│   ├── local_indicators.json     # Local/sustainable brand indicators
+│   ├── metadata.json             # App metadata
+│   ├── regional_items.json       # Region-specific clothing items
+│   └── weather_codes.json        # WMO weather code → description map
+│
+├── App.tsx                       # Root React component + routing
+├── index.tsx                     # React entry point
+├── index.html                    # Vite HTML shell
+├── types.ts                      # Shared TypeScript type definitions
+├── vite.config.ts                # Vite build config
+├── tsconfig.json                 # TypeScript compiler config
+├── package.json                  # Frontend dependencies + scripts
+├── manifest.json                 # PWA manifest
+├── sw.js                         # Service worker (push notifications + offline)
+├── icon-192.png                  # PWA icon (192×192)
+├── icon-512.png                  # PWA icon (512×512)
+│
+├── ai_model.py                   # AI orchestrator (autotag, suggestions, aura)
+├── ai_matcher.py                 # Advanced similarity matching engine
+├── auth_utils.py                 # JWT authentication
+├── backup.py                     # Automatic daily S3 backup (cron job on EC2)
+├── database.py                   # SQLite schema + helpers
+├── Embedding_store.py            # FAISS index manager for semantic recommendations
+├── logger.py                     # Centralised logging config
+├── main.py                       # FastAPI entry point + router registration
+├── rate_limiter.py               # slowapi limiter instance + shared rate limit config
+├── schemas.py                    # Pydantic request/response schemas
+├── watchdog.py                   # Server watchdog — restarts container if unresponsive
+│
+├── deploy_fashionclip.py         # SageMaker endpoint deployment script
+├── Test_sagemaker.py             # SageMaker connectivity + inference diagnostics
+│
+├── requirements.txt              # Python dependencies
+├── nixpacks.toml                 # Nixpacks build config (alternative deploy target)
+├── env.example                   # Environment variable template
+├── Dockerfile                    # Docker image for backend
 ├── .dockerignore
-└── .github/workflows/deploy.yml
+├── .gitignore
+├── pytest.ini                    # Pytest configuration
+├── TECH_STACK.md                 # Detailed tech stack notes
+└── LICENSE                       # GNU GPL v3.0
 ```
 
 ---

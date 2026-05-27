@@ -2,10 +2,12 @@ import time
 import logging
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from slowapi.middleware import SlowAPIMiddleware
 from dotenv import load_dotenv
 
 from database import init_db
 from logger import setup_logging, get_logger
+from rate_limiter import limiter, init_rate_limiter
 from routers.auth_router import router as auth_router
 from routers.wardrobe_router import router as wardrobe_router
 from routers.outfit_router import router as outfit_router
@@ -24,6 +26,10 @@ app = FastAPI(
     description="AI-powered fashion & wardrobe intelligence API",
     version="1.0.0",
 )
+
+# Initialize rate limiter
+init_rate_limiter(app)
+app.add_middleware(SlowAPIMiddleware)
 
 # ── Request logging middleware ─────────────────────────────────────────────────
 
@@ -77,4 +83,4 @@ app.include_router(ai_router)
 app.include_router(style_router)
 app.include_router(user_router)
 app.include_router(recommend_router)
-app.include_router(health_router)  
+app.include_router(health_router)

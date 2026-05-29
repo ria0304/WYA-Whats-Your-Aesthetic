@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Query, Body, Request
+from fastapi import APIRouter, HTTPException, Depends, Query, Body, Request, Response
 from typing import Dict, Any
 import json
 import logging
@@ -15,7 +15,7 @@ logger = logging.getLogger("uvicorn.error")
 
 @router.post("/fabric-scan")
 @limiter.limit("10/minute")
-async def fabric_scan(request: Request, data: Dict[str, Any], user: UserProfile = Depends(get_current_user)):
+async def fabric_scan(request: Request, response: Response, data: Dict[str, Any], user: UserProfile = Depends(get_current_user)):
     image = data.get('image')
     if not image:
         raise HTTPException(400, "Image required")
@@ -24,7 +24,7 @@ async def fabric_scan(request: Request, data: Dict[str, Any], user: UserProfile 
 
 @router.post("/outfit-match")
 @limiter.limit("10/minute")
-async def outfit_match(request: Request, data: Dict[str, Any], user: UserProfile = Depends(get_current_user)):
+async def outfit_match(request: Request, response: Response, data: Dict[str, Any], user: UserProfile = Depends(get_current_user)):
     image = data.get('image')
     variation = data.get('variation', 0)
     if not image:
@@ -43,14 +43,12 @@ async def outfit_match(request: Request, data: Dict[str, Any], user: UserProfile
 
     inspiration_item = {"category": "Top", "color": "Unknown", "fabric": "Unknown"}
 
-    # Try FAISS first (O(log n)), fall back to linear scan O(n) if no index
     if embedding_store.index_exists(user.user_id):
         query_emb = _text_to_pseudo_embedding(inspiration_item)
         similar_ids = embedding_store.search(user.user_id, query_emb, top_k=8)
         if similar_ids:
             id_set = set(similar_ids)
             ranked = [w for w in wardrobe_items if w.get("item_id") in id_set]
-            # Preserve FAISS ordering
             id_order = {sid: i for i, sid in enumerate(similar_ids)}
             ranked.sort(key=lambda x: id_order.get(x.get("item_id", ""), 999))
         else:
@@ -67,6 +65,7 @@ async def outfit_match(request: Request, data: Dict[str, Any], user: UserProfile
 @limiter.limit("10/minute")
 async def vacation_packer(
     request: Request,
+    response: Response,
     vacation_type: str = Query("city"),
     duration_days: int = Query(3),
     city: str = Query("Delhi"),
@@ -77,7 +76,7 @@ async def vacation_packer(
 
 @router.post("/curate-outfits")
 @limiter.limit("10/minute")
-async def curate_outfits(request: Request, data: Dict[str, Any] = Body(...), user: UserProfile = Depends(get_current_user)):
+async def curate_outfits(request: Request, response: Response, data: Dict[str, Any] = Body(...), user: UserProfile = Depends(get_current_user)):
     items = data.get('items', [])
     if not items:
         raise HTTPException(400, "Wardrobe items required")
@@ -86,19 +85,19 @@ async def curate_outfits(request: Request, data: Dict[str, Any] = Body(...), use
 
 @router.post("/weather-search")
 @limiter.limit("20/minute")
-async def weather_search(request: Request, data: WeatherRequest, user: UserProfile = Depends(get_current_user)):
+async def weather_search(request: Request, response: Response, data: WeatherRequest, user: UserProfile = Depends(get_current_user)):
     return FashionAIModel.weather_styling(data.city)
 
 
 @router.post("/green-audit")
 @limiter.limit("20/minute")
-async def green_audit(request: Request, data: GreenAuditRequest, user: UserProfile = Depends(get_current_user)):
+async def green_audit(request: Request, response: Response, data: GreenAuditRequest, user: UserProfile = Depends(get_current_user)):
     return await FashionAIModel.audit_brand(data.brand)
 
 
 @router.post("/gap-analysis")
 @limiter.limit("10/minute")
-async def gap_analysis(request: Request, data: Dict[str, Any] = Body(default={}), user: UserProfile = Depends(get_current_user)):
+async def gap_analysis(request: Request, response: Response, data: Dict[str, Any] = Body(default={}), user: UserProfile = Depends(get_current_user)):
     from services.gap_analyzer import gap_analyzer
 
     conn = get_db()

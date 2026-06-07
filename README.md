@@ -20,6 +20,46 @@
 
 ---
 
+## Problem Statement
+
+Most people own more clothes than they wear, yet still feel like they have nothing to wear. This paradox stems from three real problems:
+
+**1. No visibility into what you own.**
+Wardrobes grow organically over years of impulse buys, gifts, and seasonal purchases. Without a structured view of what exists, people rediscover forgotten items only when physically digging through their closet — or worse, rebuy things they already own.
+
+**2. Personal style is hard to articulate.**
+"Aesthetic" is a vague concept. People know what they like when they see it, but struggle to define their own style in a way that makes shopping, outfit building, or wardrobe curation actionable. Existing fashion apps offer generic trend feeds, not personalised style intelligence.
+
+**3. Sustainability is invisible.**
+Fast fashion has made it cheap and easy to accumulate clothing, but the environmental cost of a wardrobe is completely opaque to the average consumer. There is no feedback loop between what people buy and the sustainability impact of those choices.
+
+Current tools — Pinterest boards, Instagram saves, shopping wishlists — are passive. They help people collect inspiration but do nothing to connect that inspiration to the clothes already hanging in their wardrobe.
+
+---
+
+## Solution
+
+WYA turns a personal wardrobe into an intelligent, queryable system using computer vision and style profiling.
+
+**Style DNA Quiz.**
+An interactive questionnaire maps a user's aesthetic preferences across dimensions like formality, colour palette, era influence, and occasion. The result is a style vector that drives all downstream recommendations — not a generic personality label, but a structured profile the system can reason over.
+
+**AI-powered wardrobe digitisation.**
+Users upload garment photos and the pipeline automatically extracts category, dominant colour, secondary colour, fabric type, pattern, texture, and brightness — then generates a descriptive name like "Floral Chiffon Midi Dress" or "Washed Indigo Straight Jeans". No manual tagging required. The two-tier architecture uses AWS SageMaker (FashionCLIP) for zero-shot category classification and a local rule-based fabric classifier for everything else, with a graceful fallback if SageMaker is unreachable.
+
+**Outfit intelligence.**
+The AI Outfit Matcher generates outfit combinations from the existing wardrobe using colour harmony rules and the user's style profile — not generic fashion rules, but combinations grounded in what the user actually owns and what their profile says they prefer.
+
+**Closing the sustainability loop.**
+The Green Score gives each wardrobe a sustainability rating based on brand scores, fabric composition, and wear frequency. Users can see concretely which items drag their score down and why — turning an abstract environmental concern into a specific, actionable signal.
+
+**Wardrobe gap analysis.**
+Rather than pushing users to buy more, the gap analyzer identifies which categories or occasions are underserved in the existing wardrobe — so any new purchases are intentional, not impulsive.
+
+Everything runs on a user's actual wardrobe, not curated editorial content. The system gets more useful the more items are added, creating a feedback loop that rewards engagement with genuine utility.
+
+---
+
 ## Architecture
 
 ```mermaid

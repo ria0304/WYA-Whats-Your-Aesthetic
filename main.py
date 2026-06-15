@@ -17,6 +17,7 @@ from routers.style_router import router as style_router
 from routers.user_router import router as user_router
 from routers.recommend_router import router as recommend_router
 from routers.health_router import router as health_router
+from routers.luna_router import router as luna_router  
 
 load_dotenv()
 setup_logging()
@@ -29,6 +30,7 @@ CLOUDFRONT_DOMAIN = os.getenv("CLOUDFRONT_DOMAIN", "dsbml6kwxecah.cloudfront.net
 # ── CORS Origins ──────────────────────────────────────────────────────────────
 allowed_origins: list[str] = [
     f"https://{CLOUDFRONT_DOMAIN}",
+    "http://luna-stylist.s3-website.ap-south-1.amazonaws.com",  # Allowed AWS S3 Production bucket host
 ]
 
 # Development origins (only if DEBUG=true)
@@ -89,7 +91,7 @@ async def log_requests(request: Request, call_next):
 # ── CORS Middleware ───────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=allowed_origins,
+    allowed_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
@@ -116,3 +118,4 @@ app.include_router(style_router)
 app.include_router(user_router)
 app.include_router(recommend_router)
 app.include_router(health_router)
+app.include_router(luna_router)  

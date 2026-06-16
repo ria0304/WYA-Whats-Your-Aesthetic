@@ -18,6 +18,36 @@ logger = logging.getLogger("uvicorn.error")
 outfit_generator = OutfitGenerator()
 
 
+# ── WEATHER ENDPOINT ──────────────────────────────────────────────────────
+
+@router.get("/weather")
+@limiter.limit("20/minute")
+async def get_weather(
+    request: Request,
+    response: Response,
+    city: str = Query("Delhi"),
+    user: UserProfile = Depends(get_current_user)
+):
+    """
+    Get current weather for a city.
+    Uses the weather_service to fetch real-time weather data.
+    """
+    try:
+        from services.weather_service import weather_styling
+        result = weather_styling(city)
+        return result
+    except Exception as e:
+        logger.error(f"Weather error: {e}")
+        return {
+            "condition": "unknown",
+            "temperature": 0,
+            "humidity": 0,
+            "wind_speed": 0,
+            "location": city,
+            "error": str(e)
+        }
+
+
 # ── FEATURE 1: Personalized Outfit Scoring ──────────────────────────────────
 
 @router.post("/outfit-score")
@@ -38,7 +68,6 @@ async def outfit_score(
 
     conn = get_db()
 
-    # Get Style DNA
     dna_row = conn.execute(
         "SELECT styles, color_preference FROM style_dna WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
         (user.user_id,)
@@ -54,14 +83,12 @@ async def outfit_score(
         except Exception:
             pass
 
-    # Get wear history
     wear_history = conn.execute(
         "SELECT * FROM wear_logs WHERE user_id = ? ORDER BY created_at DESC LIMIT 50",
         (user.user_id,)
     ).fetchall()
     wear_history = [dict(row) for row in wear_history]
 
-    # Get color preferences from user_preferences
     pref_row = conn.execute(
         "SELECT preferred_categories FROM user_preferences WHERE user_id = ?",
         (user.user_id,)
@@ -76,7 +103,6 @@ async def outfit_score(
 
     conn.close()
 
-    # Score the outfit
     scored = outfit_generator.score_outfit(
         outfit=outfit,
         style_dna=style_dna,
@@ -106,7 +132,6 @@ async def outfit_match_context(
 
     conn = get_db()
 
-    # Get wardrobe items
     items = conn.execute(
         "SELECT * FROM wardrobe_items WHERE user_id = ? ORDER BY created_at DESC",
         (user.user_id,)
@@ -122,13 +147,9 @@ async def outfit_match_context(
             "message": "No wardrobe items found"
         }
 
-    # Generate basic outfits
     basic_outfits = outfit_generator.generate_outfits_from_wardrobe(wardrobe_items, count=limit * 2)
-
-    # Filter by context
     scored_outfits = outfit_generator.filter_by_context(basic_outfits, context)
 
-    # Get Style DNA for personalization
     conn = get_db()
     dna_row = conn.execute(
         "SELECT styles FROM style_dna WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
@@ -143,11 +164,9 @@ async def outfit_match_context(
         except Exception:
             pass
 
-    # Apply Style DNA to context-scored outfits
     final_outfits = []
     for scored in scored_outfits[:limit]:
         outfit = scored.get('outfit', {})
-        # Add context reasoning
         outfit['context_reasoning'] = scored.get('context_reasoning', [])
         outfit['context_score'] = scored.get('context_score', 0)
         final_outfits.append(outfit)
@@ -220,7 +239,6 @@ async def outfit_match(
     suggestion = await FashionAIModel.get_outfit_suggestion(image, variation, user.user_id)
     suggestion['closet_matches'] = ranked[:8]
     
-    # Add style DNA context
     conn = get_db()
     dna_row = conn.execute(
         "SELECT styles FROM style_dna WHERE user_id = ? ORDER BY created_at DESC LIMIT 1",
@@ -259,7 +277,6 @@ async def gap_analysis(
         (user.user_id,)
     ).fetchone()
 
-    # Get user preferences for personalization
     pref_row = conn.execute(
         "SELECT preferred_categories, brands FROM user_preferences WHERE user_id = ?",
         (user.user_id,)
@@ -287,7 +304,6 @@ async def gap_analysis(
     inspired_category = (data.get("inspired_category") or "").strip()
     include_links = data.get("include_shopping_links", True)
 
-    # Use analyzer with shopping links
     result = gap_analyzer.analyze(
         style_dna,
         wardrobe_items,
@@ -335,11 +351,7 @@ async def outfit_feedback(
     data: Dict[str, Any] = Body(...),
     user: UserProfile = Depends(get_current_user)
 ):
-    """
-    Store user feedback for outfit suggestions.
-    Used for continuous learning and personalization.
-    """
-    action = data.get('action')  # 'like', 'dislike', 'save', 'wear', 'skip'
+    action = data.get('action')
     outfit_id = data.get('outfit_id')
     item_id = data.get('item_id')
     context = data.get('context', {})

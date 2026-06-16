@@ -5,7 +5,7 @@ import json
 import logging
 import random
 from datetime import datetime, timedelta
-from typing import Any, Dict, List
+from typing import Any, Dict, List, Optional
 
 import numpy as np
 
@@ -19,6 +19,7 @@ from services.trip_curator import curate_trip
 from services.weather_service import weather_styling
 from services.outfit_generator import OutfitGenerator
 from services.notification_service import NotificationService
+from services.gap_analyzer import gap_analyzer
 
 logger = logging.getLogger(__name__)
 
@@ -28,8 +29,6 @@ except ImportError:
     fashion_matcher = None
     logger.warning("ai_matcher not found, using fallback matching")
 
-
-# ====================== FASHION AI MODEL ======================
 
 class FashionAIModel:
     """
@@ -128,21 +127,11 @@ class FashionAIModel:
             category = FashionAIModel.vision.identify_garment(img, mask)
             hex_color, color_name, rgb = FashionAIModel.vision.get_dominant_color(img, mask)
 
-            # Secondary color (set as side-effect during get_dominant_color)
             secondary_color: str = getattr(FashionAIModel.vision, "_last_secondary_color", None) or ""
-
-            # Shoe sub-type (set as side-effect during identify_garment)
             shoe_subtype: str = getattr(FashionAIModel.vision, "_last_shoe_subtype", "Shoes")
-
             texture = FashionAIModel.vision.analyze_texture_properties(img, mask)
 
-            # Pattern detection is only meaningful for clothing.
-            # Shoes, bags and accessories have shiny/structured surfaces
-            # (patent leather, hardware, weave) that produce strong Sobel edges
-            # and falsely fire as "Striped" or "Geometric". Skip for these.
-            _NO_PATTERN_CATEGORIES = {
-                "Shoes", "Bag", "Necklace", "Ring", "Earrings", "Watch", "Accessories"
-            }
+            _NO_PATTERN_CATEGORIES = {"Shoes", "Bag", "Necklace", "Ring", "Earrings", "Watch", "Accessories"}
             if category in _NO_PATTERN_CATEGORIES:
                 pattern_type: str = "solid"
                 has_pattern: bool = False
@@ -160,9 +149,6 @@ class FashionAIModel:
                 shoe_subtype=shoe_subtype if category == "Shoes" else "",
             ) or "Cotton"
 
-            # ── Smart name generation ──────────────────────────────────────────
-            # Build a human-readable name like "Floral Chiffon Midi Dress" or
-            # "Washed Indigo Straight-Leg Jeans" instead of a raw dump of fields.
             _GENERIC_FABRICS = {"Cotton", "Polyester", "Synthetic", "Fabric", "Metal"}
             _DISPLAY_CATEGORY = {
                 "T-Shirt": "T-Shirt", "Sweater": "Sweater", "Top": "Top",
@@ -176,21 +162,17 @@ class FashionAIModel:
 
             name_parts: list[str] = []
 
-            # 1. Pattern descriptor
             if has_pattern and pattern_type != "solid":
-                name_parts.append(pattern_type.capitalize())  # e.g. "Floral", "Striped"
+                name_parts.append(pattern_type.capitalize())
 
-            # 2. Fabric — only if distinctive
             if fabric not in _GENERIC_FABRICS:
-                name_parts.append(fabric)  # e.g. "Satin", "Denim", "Linen"
+                name_parts.append(fabric)
 
-            # 3. Color — primary (+ secondary if present and multi-color)
             if secondary_color and secondary_color != color_name:
                 name_parts.append(f"{color_name} & {secondary_color}")
             else:
                 name_parts.append(color_name)
 
-            # 4. Category display label
             name_parts.append(_DISPLAY_CATEGORY.get(category, category))
 
             name = " ".join(name_parts)
@@ -233,7 +215,6 @@ class FashionAIModel:
     async def get_outfit_suggestion(
         image_data: str, variation: int = 0, user_id: str = None, season: str = "summer"
     ) -> Dict[str, Any]:
-        """Get outfit suggestions with real similarity matching."""
         try:
             tag = await FashionAIModel.autotag_garment(image_data)
             if not tag.get("success"):
@@ -379,24 +360,24 @@ class FashionAIModel:
 
     @staticmethod
     async def generate_outfits_from_wardrobe(items: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Generate outfits using color harmony (Feature 2)."""
         if not fashion_matcher:
             return []
         return FashionAIModel.outfit_generator.generate_outfits_from_wardrobe(items)
 
     @staticmethod
     async def get_gap_analysis(user_id: str, wardrobe_items: List[Dict[str, Any]], db_conn) -> Dict[str, Any]:
-        """Analyze wardrobe gaps based on Style DNA (Feature 3)."""
         return FashionAIModel.outfit_generator.analyze_wardrobe_gaps(user_id, wardrobe_items, db_conn)
 
     @staticmethod
     async def get_aesthetic_aura(user_id: str, wardrobe_items: List[Dict[str, Any]], db_conn) -> Dict[str, Any]:
-        """Generate aesthetic aura data for share card (Feature 8)."""
         return FashionAIModel.outfit_generator.generate_aesthetic_aura(user_id, wardrobe_items, db_conn)
 
     @staticmethod
-    def get_evolution_data(items: List[Dict[str, Any]], history: List[Dict[str, Any]] = []) -> Dict[str, Any]:
-        """Get style evolution timeline data."""
+    def get_evolution_data(
+        items: List[Dict[str, Any]],
+        history: List[Dict[str, Any]] = [],
+        snapshots: List[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
         if not fashion_matcher:
             return {
                 "timeline": [],
@@ -404,6 +385,11 @@ class FashionAIModel:
                              "color_preferences": [], "style_confidence": 50,
                              "wardrobe_size": len(items), "recommendations": []},
             }
+
+        if snapshots and len(snapshots) > 1:
+            from services.style_profile import style_profile
+            return style_profile.analyze_evolution_over_time(snapshots)
+
         analysis = fashion_matcher.analyze_wardrobe_gaps(items)
 
         def _fmt(iso_str):
@@ -447,12 +433,59 @@ class FashionAIModel:
         }
 
     # ------------------------------------------------------------------
+    # FEATURE 1: Personalized Outfit Scoring
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    async def score_outfit(
+        outfit: Dict[str, Any],
+        style_dna: Dict[str, Any],
+        wear_history: List[Dict[str, Any]],
+        color_preferences: Optional[List[str]] = None
+    ) -> Dict[str, Any]:
+        return FashionAIModel.outfit_generator.score_outfit(
+            outfit, style_dna, wear_history, color_preferences
+        )
+
+    # ------------------------------------------------------------------
+    # FEATURE 2: Context-Aware Recommendations
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    async def filter_outfits_by_context(
+        outfits: List[Dict[str, Any]],
+        context: Dict[str, Any]
+    ) -> List[Dict[str, Any]]:
+        return FashionAIModel.outfit_generator.filter_by_context(outfits, context)
+
+    # ------------------------------------------------------------------
+    # FEATURE 5: Wardrobe Analytics
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    async def get_wardrobe_analytics(
+        wardrobe_items: List[Dict[str, Any]],
+        wear_history: List[Dict[str, Any]] = None
+    ) -> Dict[str, Any]:
+        return FashionAIModel.outfit_generator.get_wardrobe_analytics(wardrobe_items, wear_history)
+
+    # ------------------------------------------------------------------
+    # FEATURE 6: Outfit Memory & Feedback
+    # ------------------------------------------------------------------
+
+    @staticmethod
+    async def apply_feedback_to_scoring(
+        outfits: List[Dict[str, Any]],
+        feedback_history: List[Dict[str, Any]]
+    ) -> List[Dict[str, Any]]:
+        return FashionAIModel.outfit_generator.apply_feedback_to_scoring(outfits, feedback_history)
+
+    # ------------------------------------------------------------------
     # Background Removal (Feature 7)
     # ------------------------------------------------------------------
 
     @staticmethod
     async def remove_background(image_data: str) -> Dict[str, Any]:
-        """Remove background from garment image."""
         try:
             img = FashionAIModel.vision.decode_image(image_data)
             if img is None or img.size == 0:
@@ -480,7 +513,6 @@ class FashionAIModel:
 
     @staticmethod
     async def save_push_subscription(user_id: str, subscription_data: Dict[str, Any], db_conn) -> bool:
-        """Save push notification subscription."""
         return await NotificationService.save_subscription(user_id, subscription_data, db_conn)
 
     # ------------------------------------------------------------------
@@ -519,7 +551,6 @@ class FashionAIModel:
             "Brown": "Cream", "Beige": "Navy",
         }.get(base_color, "White")
 
-    # Delegate trip / weather / brand to service modules
     @staticmethod
     def curate_trip(city: str, duration: int, vibe: str) -> Dict[str, Any]:
         from services.trip_curator import curate_trip as _ct
@@ -535,8 +566,6 @@ class FashionAIModel:
         from services.brand_auditor import audit_brand as _ab
         return await _ab(brand)
 
-
-# ====================== MODULE-LEVEL HELPERS ======================
 
 def best_match_color_from_context(color_context: str) -> str:
     known = ["Black", "White", "Navy", "Beige", "Denim", "Gray", "Olive", "Camel",

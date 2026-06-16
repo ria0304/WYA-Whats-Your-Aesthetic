@@ -38,6 +38,9 @@ async def add_wardrobe_item(
     color: str = Form(""),
     fabric: str = Form(""),
     image_url: Optional[str] = Form(None),
+    price: float = Form(0.0),
+    brand: str = Form(""),
+    sustainability_score: int = Form(0),
     user: UserProfile = Depends(get_current_user)
 ):
     item_id = str(uuid.uuid4())
@@ -45,12 +48,13 @@ async def add_wardrobe_item(
     try:
         now = datetime.utcnow().isoformat()
         conn.execute(
-            "INSERT INTO wardrobe_items (item_id, user_id, name, category, color, fabric, image_url, created_at) VALUES (?,?,?,?,?,?,?,?)",
-            (item_id, user.user_id, name, category, color, fabric, image_url, now)
+            """INSERT INTO wardrobe_items 
+               (item_id, user_id, name, category, color, fabric, image_url, price, brand, sustainability_score, created_at) 
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            (item_id, user.user_id, name, category, color, fabric, image_url, price, brand, sustainability_score, now)
         )
         conn.commit()
 
-        # Generate and persist embedding
         item_dict = {"item_id": item_id, "name": name, "category": category, "color": color, "fabric": fabric}
         try:
             from ai_matcher import _text_to_pseudo_embedding
@@ -61,7 +65,6 @@ async def add_wardrobe_item(
         except Exception as emb_exc:
             logger.warning("Embedding generation skipped — item=%s error=%s", item_id[:8], emb_exc)
 
-        # Update FAISS index
         try:
             import embedding_store
             embedding_store.add_item(user.user_id, item_dict)
@@ -69,7 +72,7 @@ async def add_wardrobe_item(
             logger.warning("FAISS add_item skipped — item=%s error=%s", item_id[:8], faiss_exc)
 
         logger.info("Wardrobe item added — user=%s item=%s category=%s", user.user_id[:8], item_id[:8], category)
-        return {"success": True}
+        return {"success": True, "item_id": item_id}
     except Exception as e:
         logger.error("Add wardrobe item failed — user=%s error=%s", user.user_id[:8], e)
         raise HTTPException(500, "Failed to add item")
@@ -87,7 +90,6 @@ async def delete_wardrobe_item(item_id: str, user: UserProfile = Depends(get_cur
         )
         conn.commit()
 
-        # Invalidate FAISS index so it rebuilds fresh on next search
         try:
             import embedding_store
             embedding_store.delete_index(user.user_id)
@@ -108,11 +110,23 @@ async def wear_item(item_id: str, data: Dict[str, Any] = None, user: UserProfile
     conn = get_db()
     try:
         worn_at = data.get('worn_at', datetime.utcnow().isoformat()) if data else datetime.utcnow().isoformat()
+        occasion = data.get('occasion', None) if data else None
+        weather = data.get('weather', None) if data else None
+        temperature = data.get('temperature', None) if data else None
+        time_of_day = data.get('time_of_day', None) if data else None
+
         conn.execute(
-            "UPDATE wardrobe_items SET wear_count = wear_count + 1, last_worn = ? WHERE item_id = ? AND user_id = ?",
+            """UPDATE wardrobe_items 
+               SET wear_count = wear_count + 1, last_worn = ? 
+               WHERE item_id = ? AND user_id = ?""",
             (worn_at, item_id, user.user_id)
         )
         conn.commit()
+
+        from database import log_wear
+        log_wear(conn, user.user_id, item_id, None, occasion, weather, temperature, time_of_day)
+        conn.commit()
+
         logger.info("Item worn — user=%s item=%s", user.user_id[:8], item_id[:8])
         return {"success": True}
     except Exception as e:
@@ -130,6 +144,9 @@ async def update_wardrobe_item(
     color: Optional[str] = Form(None),
     fabric: Optional[str] = Form(None),
     image_url: Optional[str] = Form(None),
+    price: Optional[float] = Form(None),
+    brand: Optional[str] = Form(None),
+    sustainability_score: Optional[int] = Form(None),
     user: UserProfile = Depends(get_current_user)
 ):
     conn = get_db()
@@ -145,6 +162,12 @@ async def update_wardrobe_item(
             fields.append("fabric = ?"); values.append(fabric)
         if image_url is not None:
             fields.append("image_url = ?"); values.append(image_url)
+        if price is not None:
+            fields.append("price = ?"); values.append(price)
+        if brand is not None:
+            fields.append("brand = ?"); values.append(brand)
+        if sustainability_score is not None:
+            fields.append("sustainability_score = ?"); values.append(sustainability_score)
 
         if fields:
             sql = f"UPDATE wardrobe_items SET {', '.join(fields)} WHERE item_id = ? AND user_id = ?"
@@ -259,8 +282,6 @@ async def archive_item(item_id: str, data: Dict[str, Any], user: UserProfile = D
         conn.close()
 
 
-# ── Archive ────────────────────────────────────────────────────────────────────
-
 @router.get("/archive")
 async def get_archive(user: UserProfile = Depends(get_current_user)):
     conn = get_db()
@@ -297,5 +318,60 @@ async def permanent_delete_archive(item_id: str, user: UserProfile = Depends(get
     except Exception as e:
         logger.error("Archive delete failed — user=%s item=%s error=%s", user.user_id[:8], item_id[:8], e)
         raise HTTPException(500, "Failed to delete archive item")
+    finally:
+        conn.close()
+
+
+@router.get("/analytics")
+async def get_wardrobe_analytics(user: UserProfile = Depends(get_current_user)):
+    conn = get_db()
+    try:
+        items = conn.execute(
+            "SELECT * FROM wardrobe_items WHERE user_id = ?",
+            (user.user_id,)
+        ).fetchall()
+        wardrobe_items = [dict(row) for row in items]
+
+        wear_logs = conn.execute(
+            "SELECT * FROM wear_logs WHERE user_id = ? ORDER BY created_at DESC",
+            (user.user_id,)
+        ).fetchall()
+        wear_history = [dict(row) for row in wear_logs]
+
+        from services.outfit_generator import OutfitGenerator
+        generator = OutfitGenerator()
+        analytics = generator.get_wardrobe_analytics(wardrobe_items, wear_history)
+
+        return analytics
+    except Exception as e:
+        logger.error("Wardrobe analytics failed — user=%s error=%s", user.user_id[:8], e)
+        raise HTTPException(500, "Failed to fetch wardrobe analytics")
+    finally:
+        conn.close()
+
+
+@router.get("/analytics/evolution")
+async def get_style_evolution(user: UserProfile = Depends(get_current_user)):
+    conn = get_db()
+    try:
+        snapshots = conn.execute(
+            "SELECT * FROM style_evolution WHERE user_id = ? ORDER BY snapshot_date ASC",
+            (user.user_id,)
+        ).fetchall()
+
+        if not snapshots:
+            return {
+                "has_evolution": False,
+                "message": "Not enough data to analyze evolution",
+                "trajectory": [],
+                "current": None
+            }
+
+        snapshot_list = [dict(row) for row in snapshots]
+        from services.style_profile import style_profile
+        return style_profile.analyze_evolution_over_time(snapshot_list)
+    except Exception as e:
+        logger.error("Style evolution failed — user=%s error=%s", user.user_id[:8], e)
+        raise HTTPException(500, "Failed to fetch style evolution")
     finally:
         conn.close()

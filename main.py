@@ -91,7 +91,7 @@ async def log_requests(request: Request, call_next):
 # ── CORS Middleware ───────────────────────────────────────────────────────────
 app.add_middleware(
     CORSMiddleware,
-    allowed_origins=allowed_origins,
+    allow_origins=allowed_origins,
     allow_credentials=True,
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "Accept", "X-Requested-With"],
@@ -118,4 +118,4 @@ app.include_router(style_router)
 app.include_router(user_router)
 app.include_router(recommend_router)
 app.include_router(health_router)
-app.include_router(luna_router)  
+app.include_router(luna_router)

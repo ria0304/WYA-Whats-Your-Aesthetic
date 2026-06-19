@@ -41,10 +41,17 @@ class OutfitGenerator:
             return []
         outfits = []
         styles = ['casual', 'formal', 'boho', 'streetwear', 'classic']
+        used_ids: set = set()
         for i in range(min(count, len(styles))):
-            outfit = fashion_matcher.create_complete_outfit(items, style=styles[i])
+            outfit = fashion_matcher.create_complete_outfit(
+                items, style=styles[i], exclude_ids=used_ids
+            )
             if outfit:
                 outfits.append(outfit)
+                for it in outfit.get('items', []):
+                    item_id = it.get('id') or it.get('item_id')
+                    if item_id is not None:
+                        used_ids.add(item_id)
         return outfits
 
     # ------------------------------------------------------------------

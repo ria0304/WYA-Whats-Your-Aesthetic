@@ -6,7 +6,7 @@ import logging
 import random
 import json
 import os
-from typing import Dict, Any, List, Tuple
+from typing import Dict, Any, List, Tuple, Optional
 from collections import defaultdict
 import numpy as np
 
@@ -293,13 +293,35 @@ class AdvancedFashionMatcher:
         scored.sort(key=lambda x: x['match_score'], reverse=True)
         return scored
 
-    def create_complete_outfit(self, items: List[Dict[str, Any]], style: str = "casual", occasion: str = "daytime") -> Dict[str, Any]:
+    # Keyword sets used to bias seed selection toward a requested style.
+    # Falls back gracefully when no item names match (most wardrobes won't
+    # have explicit style tags, so this is a soft preference, not a filter).
+    STYLE_KEYWORDS = {
+        'casual': ['casual', 'tee', 'jeans', 'sneaker', 'cotton', 'basic'],
+        'formal': ['formal', 'suit', 'blazer', 'silk', 'tailored'],
+        'boho': ['boho', 'flowy', 'embroid', 'fringe', 'maxi', 'linen'],
+        'bohemian': ['boho', 'flowy', 'embroid', 'fringe', 'maxi', 'linen'],
+        'streetwear': ['street', 'hoodie', 'oversized', 'graphic', 'cargo'],
+        'classic': ['classic', 'tailored', 'timeless', 'knit', 'button'],
+    }
+
+    def create_complete_outfit(
+        self,
+        items: List[Dict[str, Any]],
+        style: str = "casual",
+        occasion: str = "daytime",
+        exclude_ids: Optional[set] = None,
+    ) -> Dict[str, Any]:
         """
         Build outfit using color harmony seed logic instead of random picks (Feature 2).
         Picks a seed item and builds outfit using complementary/analogous color logic.
+
+        `exclude_ids` lets callers avoid repeating the same seed/partner across
+        multiple style variants generated in the same batch.
         """
         if len(items) < 2:
             return {}
+        exclude_ids = exclude_ids or set()
         categorized = defaultdict(list)
         for item in items:
             cat = item.get('category', 'Unknown')
@@ -310,27 +332,49 @@ class AdvancedFashionMatcher:
             else:
                 categorized['other'].append(item)
 
-        # Pick seed item (most worn or random from tops/bottoms)
+        # Pick seed item: prefer items matching the requested style's keywords,
+        # then prefer items not already used in this batch, then highest wear_count.
         seed_pool = categorized.get('tops', []) + categorized.get('bottoms', []) or items
-        seed = max(seed_pool, key=lambda x: x.get('wear_count', 0))
+        kws = self.STYLE_KEYWORDS.get(style.lower(), [])
 
-        def best(pool):
-            if not pool:
+        def matches_style(it):
+            name = it.get('name', '').lower()
+            return any(k in name for k in kws)
+
+        def is_fresh(it):
+            return it.get('id') not in exclude_ids
+
+        # Build a ranked list of candidate pools, most preferred first.
+        candidate_pools = [
+            [it for it in seed_pool if matches_style(it) and is_fresh(it)],
+            [it for it in seed_pool if is_fresh(it)],
+            seed_pool,
+        ]
+        pool = next((p for p in candidate_pools if p), seed_pool)
+        seed = max(pool, key=lambda x: x.get('wear_count', 0))
+
+        def best(pool, avoid_ids=()):
+            fresh = [it for it in pool if it.get('id') not in avoid_ids]
+            search_pool = fresh or pool
+            if not search_pool:
                 return None
-            return max(pool, key=lambda x: compute_similarity_score(seed, x))
+            return max(search_pool, key=lambda x: compute_similarity_score(seed, x))
 
         selected = [seed]
-        partner = best(categorized.get('bottoms' if seed.get('category') in self.category_groups['tops'] else 'tops', []))
+        partner = best(
+            categorized.get('bottoms' if seed.get('category') in self.category_groups['tops'] else 'tops', []),
+            avoid_ids=exclude_ids,
+        )
         if not partner and seed.get('category') in self.category_groups['dresses']:
-            partner = best(categorized.get('outerwear', []))
+            partner = best(categorized.get('outerwear', []), avoid_ids=exclude_ids)
         if partner:
             selected.append(partner)
         
-        shoes = best(categorized.get('shoes', []))
+        shoes = best(categorized.get('shoes', []), avoid_ids=exclude_ids | {it.get('id') for it in selected})
         if shoes:
             selected.append(shoes)
         if random.random() > 0.3:
-            acc = best(categorized.get('accessories', []))
+            acc = best(categorized.get('accessories', []), avoid_ids=exclude_ids | {it.get('id') for it in selected})
             if acc:
                 selected.append(acc)
 

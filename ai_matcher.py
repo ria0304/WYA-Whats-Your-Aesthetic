@@ -354,7 +354,7 @@ class AdvancedFashionMatcher:
         return {
             'name': outfit_name,
             'vibe': vibe,
-            'item_ids': [it['id'] for it in selected],
+            'item_ids': [it.get('item_id') or it.get('id') for it in selected],
             'items': selected,
             'compatibility_score': round(avg, 1),
             'styling_tips': self._generate_styling_tips(selected, style, occasion),

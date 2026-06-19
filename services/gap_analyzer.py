@@ -202,10 +202,10 @@ def _item_to_embedding(item: Dict[str, Any]) -> np.ndarray:
         "accessory": {"Bag", "Accessory", "Jewelry", "Hat", "Scarf", "Belt",
                       "Necklace", "Ring", "Earrings", "Watch"},
     }
-    cat = item.get("category", "Top")
-    color = item.get("color", "Black")
-    fabric = item.get("fabric", "Unknown")
-    name = item.get("name", "").lower()
+    cat = item.get("category") or "Top"
+    color = item.get("color") or "Black"
+    fabric = item.get("fabric") or "Unknown"
+    name = (item.get("name") or "").lower()
 
     # category axes [top, bottom, outerwear, dress, shoes, accessory, casual, formal]
     cat_vec = [0.0] * 8
@@ -341,10 +341,10 @@ class GapAnalyzer:
         sustainability_score = 0
 
         for item in wardrobe_items:
-            cat = item.get("category", "Unknown")
-            color = item.get("color", "Unknown")
-            name = item.get("name", "").lower()
-            sustainable = item.get("sustainability_score", 0)
+            cat = item.get("category") or "Unknown"
+            color = item.get("color") or "Unknown"
+            name = (item.get("name") or "").lower()
+            sustainable = item.get("sustainability_score") or 0
 
             category_counts[cat] += 1
             color_counts[color] += 1

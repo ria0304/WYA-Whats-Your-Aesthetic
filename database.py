@@ -103,6 +103,24 @@ def init_db():
         disliked_categories TEXT,
         updated_at TEXT,
         FOREIGN KEY (user_id) REFERENCES users (user_id))''')
+
+    # Schema Migration: Check for missing columns in 'user_preferences' table
+    cursor.execute("PRAGMA table_info(user_preferences)")
+    columns = [column[1] for column in cursor.fetchall()]
+
+    if 'preferred_categories' not in columns:
+        logger.info("Migrating database: Adding 'preferred_categories' column to user_preferences table.")
+        try:
+            cursor.execute("ALTER TABLE user_preferences ADD COLUMN preferred_categories TEXT")
+        except Exception as e:
+            logger.error(f"Failed to add preferred_categories column: {e}")
+
+    if 'disliked_categories' not in columns:
+        logger.info("Migrating database: Adding 'disliked_categories' column to user_preferences table.")
+        try:
+            cursor.execute("ALTER TABLE user_preferences ADD COLUMN disliked_categories TEXT")
+        except Exception as e:
+            logger.error(f"Failed to add disliked_categories column: {e}")
     
     # ── Saved Outfits Table ──────────────────────────────────────────────────
     cursor.execute('''CREATE TABLE IF NOT EXISTS saved_outfits (

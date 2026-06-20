@@ -25,12 +25,29 @@ logger = get_logger(__name__)
 
 # ── Config ────────────────────────────────────────────────────────────────────
 DEBUG = os.getenv("DEBUG", "false").lower() == "true"
-CLOUDFRONT_DOMAIN = os.getenv("CLOUDFRONT_DOMAIN", "dsbml6kwxecah.cloudfront.net")
+
+# Main WYA frontend CloudFront domain
+CLOUDFRONT_DOMAIN = os.getenv(
+    "CLOUDFRONT_DOMAIN", 
+    "dsbml6kwxecah.cloudfront.net"
+)
+
+# Luna frontend CloudFront domain (added to fix CORS)
+LUNA_CLOUDFRONT_DOMAIN = os.getenv(
+    "LUNA_CLOUDFRONT_DOMAIN",
+    "d34nojihupg1cl.cloudfront.net"
+)
 
 # ── CORS Origins ──────────────────────────────────────────────────────────────
 allowed_origins: list[str] = [
+    # WYA frontend
     f"https://{CLOUDFRONT_DOMAIN}",
-    "http://luna-stylist.s3-website.ap-south-1.amazonaws.com",  # Allowed AWS S3 Production bucket host
+    
+    # Luna frontend - FIXED: added this to allow CORS from Luna
+    f"https://{LUNA_CLOUDFRONT_DOMAIN}",
+    
+    # Legacy S3 deployment (kept for backward compatibility)
+    "http://luna-stylist.s3-website.ap-south-1.amazonaws.com",
 ]
 
 # Development origins (only if DEBUG=true)
@@ -48,6 +65,7 @@ if extra:
     allowed_origins += [o.strip() for o in extra.split(",") if o.strip()]
 
 logger.info("CORS origins configured: %d domains", len(allowed_origins))
+logger.info("Allowed origins: %s", allowed_origins)
 
 # ── Lifespan (replaces deprecated @app.on_event) ──────────────────────────────
 @asynccontextmanager

@@ -144,6 +144,7 @@ Garment crop + zoom  (removes background noise pre-classification)
 **Tier 1 — AWS SageMaker (FashionCLIP)**
 Zero-shot classification with candidate labels. EC2 authenticates via IAM instance profile (no API keys). Returns category (e.g. Dress, Jeans, Watch).
 
+
 **Tier 2 — Rule-based fabric classifier**
 Runs locally on the EC2 container using `category × color × texture × pattern` rules — no additional ML inference needed.
 

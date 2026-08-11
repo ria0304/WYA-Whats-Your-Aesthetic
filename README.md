@@ -61,6 +61,16 @@ Everything runs on a user's actual wardrobe, not curated editorial content. The 
 
 ---
 
+## Demo
+
+<div align="center">
+<img src="screenshots/wya-demo.gif" width="340" alt="Live demo — uploading a garment photo and watching WYA's AI classify it (category, fabric, pattern) and auto-generate a name in real time" />
+
+<sub>AI wardrobe auto-tagging in action — upload a photo, WYA classifies it and generates a name like "Floral Knit Olive & Taupe Dress" automatically.</sub>
+</div>
+
+---
+
 ## Screenshots
 
 <div align="center">
@@ -370,6 +380,7 @@ Tests use a temporary SQLite database — your real database is never touched.
 WYA-Whats-Your-Aesthetic/
 │
 ├── screenshots/                  # README screenshots
+│   ├── wya-demo.gif              # Live AI classification demo
 │   ├── home-1-dashboard.png
 │   ├── home-2-features.png
 │   ├── home-3-more-features.png

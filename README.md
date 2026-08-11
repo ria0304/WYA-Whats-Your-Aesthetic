@@ -21,6 +21,22 @@
 
 ---
 
+## Screenshots
+
+<div align="center">
+
+| Home — Style DNA | Home — Feature Grid |
+|---|---|
+| <img src="docs/screenshots/home-style-dna.png" width="260" /> | <img src="docs/screenshots/home-feature-grid.png" width="260" /> |
+
+| My Wardrobe | AI Matcher | Aesthetic Aura |
+|---|---|---|
+| <img src="docs/screenshots/closet-wardrobe.png" width="220" /> | <img src="docs/screenshots/ai-matcher.png" width="220" /> | <img src="docs/screenshots/aesthetic-aura.png" width="220" /> |
+
+</div>
+
+---
+
 ## Problem Statement
 
 Most people own more clothes than they wear, yet still feel like they have nothing to wear. This paradox stems from three real problems:
@@ -396,6 +412,9 @@ WYA-Whats-Your-Aesthetic/
 │   ├── color_harmony.json
 │   ├── fashion_data.json
 │   └── weather_codes.json
+│
+├── docs/
+│   └── screenshots/               # App screenshots referenced in this README
 │
 ├── ai_model.py                   # AI orchestrator (autotag, suggestions, aura)
 ├── ai_matcher.py                 # Advanced similarity matching engine

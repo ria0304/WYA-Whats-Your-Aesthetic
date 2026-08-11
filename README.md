@@ -21,22 +21,6 @@
 
 ---
 
-## Screenshots
-
-<div align="center">
-
-| Home — Style DNA | Home — Feature Grid |
-|---|---|
-| <img src="docs/screenshots/home-style-dna.png" width="260" /> | <img src="docs/screenshots/home-feature-grid.png" width="260" /> |
-
-| My Wardrobe | AI Matcher | Aesthetic Aura |
-|---|---|---|
-| <img src="docs/screenshots/closet-wardrobe.png" width="220" /> | <img src="docs/screenshots/ai-matcher.png" width="220" /> | <img src="docs/screenshots/aesthetic-aura.png" width="220" /> |
-
-</div>
-
----
-
 ## Problem Statement
 
 Most people own more clothes than they wear, yet still feel like they have nothing to wear. This paradox stems from three real problems:
@@ -74,6 +58,34 @@ The Green Score gives each wardrobe a sustainability rating based on brand score
 Rather than pushing users to buy more, the gap analyzer identifies which categories or occasions are underserved in the existing wardrobe — so any new purchases are intentional, not impulsive.
 
 Everything runs on a user's actual wardrobe, not curated editorial content. The system gets more useful the more items are added, creating a feedback loop that rewards engagement with genuine utility.
+
+---
+
+## Screenshots
+
+<div align="center">
+
+### Home
+
+<img src="screenshots/home-1-dashboard.png" width="260" alt="Home dashboard — Style DNA card, Closet, and AI Matcher shortcuts" />
+<img src="screenshots/home-2-features.png" width="260" alt="Home feature grid — Closet, AI Matcher, Scan Look, Weather, Vacation Shop, Green Score, Evolution" />
+<img src="screenshots/home-3-more-features.png" width="260" alt="Home feature grid continued — Green Score, Evolution, Curate, Aesthetic Aura, The Archive" />
+
+### Aesthetic Aura
+
+<img src="screenshots/aesthetic-aura.png" width="260" alt="Aesthetic Aura — Spotify Wrapped-style shareable style card showing Classic Chic 60%" />
+
+### AI Matcher
+
+<img src="screenshots/ai-matcher.png" width="260" alt="AI Matcher — Style Match Engine with AI Match, Wardrobe, and Gap actions" />
+
+### Wardrobe (Closet)
+
+<img src="screenshots/wardrobe-closet.png" width="260" alt="My Wardrobe — closet grid filtered by All / Top / Bottom / Outerwear" />
+
+</div>
+
+> Screenshots are stored in `/screenshots` in this repo. Replace the files there with updated captures whenever the UI changes.
 
 ---
 
@@ -357,6 +369,14 @@ Tests use a temporary SQLite database — your real database is never touched.
 ```
 WYA-Whats-Your-Aesthetic/
 │
+├── screenshots/                  # README screenshots
+│   ├── home-1-dashboard.png
+│   ├── home-2-features.png
+│   ├── home-3-more-features.png
+│   ├── aesthetic-aura.png
+│   ├── ai-matcher.png
+│   └── wardrobe-closet.png
+│
 ├── views/                        # React page components
 │   ├── AIMatcher.tsx             # Outfit suggestion UI
 │   ├── AestheticAura.tsx         # Shareable style card
@@ -412,9 +432,6 @@ WYA-Whats-Your-Aesthetic/
 │   ├── color_harmony.json
 │   ├── fashion_data.json
 │   └── weather_codes.json
-│
-├── docs/
-│   └── screenshots/               # App screenshots referenced in this README
 │
 ├── ai_model.py                   # AI orchestrator (autotag, suggestions, aura)
 ├── ai_matcher.py                 # Advanced similarity matching engine

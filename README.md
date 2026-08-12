@@ -71,6 +71,18 @@ Everything runs on a user's actual wardrobe, not curated editorial content. The 
 
 ---
 
+## Full Demo Video
+
+<div align="center">
+<a href="https://drive.google.com/file/d/14lTDyZkzw6Gd06NeikzOdwYVkRid56qq/view?usp=sharing">
+<img src="screenshots/wya-demo.gif" width="500" alt="Watch the full WYA demo video" />
+<br/>
+<b>▶ Watch the full demo</b>
+</a>
+</div>
+
+---
+
 ## Screenshots
 
 <div align="center">
@@ -94,8 +106,6 @@ Everything runs on a user's actual wardrobe, not curated editorial content. The 
 <img src="screenshots/wardrobe-closet.png" width="260" alt="My Wardrobe — closet grid filtered by All / Top / Bottom / Outerwear" />
 
 </div>
-
-> Screenshots are stored in `/screenshots` in this repo. Replace the files there with updated captures whenever the UI changes.
 
 ---
 

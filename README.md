@@ -16,7 +16,7 @@
 
 **An AI-powered full-stack fashion web app** that helps users discover, analyze, and refine their personal style through computer vision, style profiling, and wardrobe intelligence.
 
-> ⚠️ **Status:** The EC2 backend is currently disabled to pause AWS costs. The frontend is still live on CloudFront, but API features (wardrobe, AI tagging, outfit matching, etc.) are offline. To run the full app, see [Run Locally](#run-locally) or [Docker Deployment](#docker-deployment-ec2).
+> ⚠️ **Status:** The EC2 backend is currently disabled to pause AWS costs. The frontend is still live on CloudFront, but API features (wardrobe, AI tagging, outfit matching, etc.) are offline. A full **demo video** is available below — see [Full Demo Video](#full-demo-video) — showing all features working end-to-end. To run the full app yourself, see [Run Locally](#run-locally) or [Docker Deployment](#docker-deployment-ec2).
 
 </div>
 

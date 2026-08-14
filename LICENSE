@@ -1,43 +1,53 @@
-# Co-Ownership Agreement — WYA (What's Your Aesthetic)
+# PolyForm Strict License 1.0.0
 
-**Parties:** Ria and Mitakshi Sinha ("the Co-Owners")
-**Date:** _______________
-**Project:** WYA (What's Your Aesthetic) — software, source code, and associated patent application(s)
+<https://polyformproject.org/licenses/strict/1.0.0>
 
-This agreement governs the relationship between the Co-Owners regarding WYA. It does not replace or modify the PolyForm Strict License 1.0.0 governing third-party use of the software; it governs the relationship *between the Co-Owners themselves*.
+## Acceptance
 
-## 1. Ownership Split
-Each Co-Owner holds a ______% ownership interest in the software copyright and any resulting patent(s), unless stated otherwise below.
-*(Default assumption if left blank: 50/50.)*
+In order to get any license under these terms, you must agree to them as both strict obligations and conditions to all your licenses.
 
-## 2. Licensing to Third Parties
-Neither Co-Owner may grant a license, sublicense, assignment, or any commercial rights to WYA or the underlying patent to any third party without the **written consent of the other Co-Owner**. This overrides the legal default that joint owners may license independently.
+## Copyright License
 
-## 3. Decision-Making
-- Day-to-day development decisions: either Co-Owner may act independently.
-- Major decisions (licensing, commercialization, adding a new co-owner, patent filings/amendments, selling any rights): require **unanimous written agreement**.
-- If the Co-Owners cannot agree: [insert tie-breaker — e.g., third-party mediator, or default to "no action" until resolved].
+The licensor grants you a copyright license for the software to do everything you might do with the software that would otherwise infringe the licensor's copyright in it for any permitted purpose, other than distributing the software or making changes or new works based on the software.
 
-## 4. Departure of a Co-Owner
-If one Co-Owner stops contributing or wants to exit:
-- Their ownership stake is: [ ] retained as-is / [ ] reduced over time / [ ] bought out by the remaining Co-Owner at a value determined by [method].
-- The exiting Co-Owner [ ] retains / [ ] forfeits the right to block future licensing decisions.
+## Patent License
 
-## 5. Revenue and Licensing Income
-Any revenue from licensing, sale, or commercialization of WYA or its patent is split ______% / ______% between the Co-Owners, after deducting agreed shared costs (e.g., patent filing/maintenance fees), unless otherwise agreed in writing per instance.
+The licensor grants you a patent license for the software that covers patent claims the licensor can license, or becomes able to license, that you would infringe by using the software.
 
-## 6. Patent Filing Costs and Maintenance
-Patent application, prosecution, and maintenance fees are split ______% / ______%. A Co-Owner who fails to contribute their share within [timeframe] [insert consequence — e.g., forfeits proportional ownership / gets bought out].
+## Noncommercial Purposes
 
-## 7. University IP Disclosure
-Both Co-Owners confirm they have reviewed their university's IP policy and [ ] disclosed the invention as required / [ ] confirmed no disclosure is required / [ ] obtained a waiver (attach documentation).
+Any noncommercial purpose is a permitted purpose.
 
-## 8. Dispute Resolution
-Disputes between Co-Owners will first be addressed through direct discussion, then through [mediation / arbitration / other] before any legal action.
+## Personal Uses
 
-## 9. Signatures
+Personal use for research, experiment, and testing for the benefit of public knowledge, personal study, private entertainment, hobby projects, amateur pursuits, or religious observance, without any anticipated commercial application, is use for a permitted purpose.
 
-_______________________          _______________________
-Ria                                Mitakshi Sinha
+## Noncommercial Organizations
 
-Date: ___________                 Date: ___________
+Use by any charitable organization, educational institution, public research organization, public safety or health organization, environmental protection organization, or government institution is use for a permitted purpose regardless of the source of funding or obligations resulting from the funding.
+
+## Fair Use
+
+You may have "fair use" rights for the software under the law. These terms do not limit them.
+
+## No Other Rights
+
+These terms do not allow you to sublicense or transfer any of your licenses to anyone else, or prevent the licensor from granting licenses to anyone else. These terms do not imply any other licenses.
+
+## Patent Defense
+
+If you make any written claim that the software infringes or contributes to infringement of any patent, your patent license for the software granted under these terms ends immediately. If your company makes such a claim, your patent license ends immediately for work on behalf of your company.
+
+## Violations
+
+The first time you are notified in writing that you have violated any of these terms, or done anything with the software not covered by your licenses, your licenses can nonetheless continue if you come into full compliance with these terms, and take practical steps to correct past violations, within 32 days of receiving notice. Otherwise, all your licenses end immediately.
+
+## No Liability
+
+***As far as the law allows, the software comes as is, without any warranty or condition, and the licensor will not be liable to you for any damages arising out of these terms or the use or nature of the software, under any kind of legal claim.***
+
+## Definitions
+
+The **licensor** is Ria and Mitakshi Sinha, jointly, offering these terms for the software WYA (What's Your Aesthetic).
+
+**You** refers to the individual or entity agreeing to these terms.

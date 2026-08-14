@@ -7,6 +7,7 @@
 <img src="https://img.shields.io/badge/CI%2FCD-GitHub%20Actions-black?style=flat-square&logo=githubactions" />
 <img src="https://img.shields.io/badge/Rate%20Limiting-slowapi-teal?style=flat-square" />
 <img src="https://img.shields.io/badge/Tests-pytest-yellow?style=flat-square&logo=pytest" />
+<img src="https://img.shields.io/badge/License-PolyForm%20Strict%201.0.0-lightgrey?style=flat-square" />
 
 ![CI/CD](https://github.com/ria0304/WYA-Whats-Your-Aesthetic/actions/workflows/deploy.yml/badge.svg)
 
@@ -470,7 +471,7 @@ WYA-Whats-Your-Aesthetic/
 ├── requirements.txt
 ├── Dockerfile
 ├── env.example
-└── LICENSE                       # GNU GPL v3.0
+└── LICENSE                       # PolyForm Strict License 1.0.0
 ```
 
 ---
@@ -526,6 +527,6 @@ WYA-Whats-Your-Aesthetic/
 
 **Copyright © 2024 Ria S & Mitakshi Sinha**
 
-This program is free software: you can redistribute it and/or modify it under the terms of the GNU General Public License as published by the Free Software Foundation, either version 3 of the License, or (at your option) any later version.
+This software is **source-available, not open source**. It is licensed under the **PolyForm Strict License 1.0.0** — noncommercial use only, with **no redistribution** and **no derivative works** permitted without the licensors' written consent. Commercial use of any kind requires a separate written license agreement with the copyright holders.
 
-**Full license text:** [GNU GPL v3.0](https://www.gnu.org/licenses/gpl-3.0.en.html)
+**Full license text:** [`LICENSE`](./LICENSE) · [PolyForm Strict 1.0.0](https://polyformproject.org/licenses/strict/1.0.0)
